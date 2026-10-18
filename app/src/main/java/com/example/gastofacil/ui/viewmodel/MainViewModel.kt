@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gastofacil.data.local.AppDatabase
 import com.example.gastofacil.data.local.CategoryEntity
 import com.example.gastofacil.data.local.TransactionEntity
+import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.data.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -18,7 +19,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: TransactionRepository
 
-    // Declaração do fluxo de categorias logo no topo para evitar erros de ordem
     val categories: Flow<List<CategoryEntity>> = AppDatabase.getDatabase(application)
         .categoryDao()
         .getAllCategories()
@@ -28,7 +28,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val transactionDao = database.transactionDao()
         repository = TransactionRepository(transactionDao)
 
-        // Insere categorias padrão automaticamente se a tabela estiver vazia
         viewModelScope.launch {
             val categoryDao = database.categoryDao()
             if (categoryDao.getCategoryCount() == 0) {
@@ -42,14 +41,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Insere uma nova transação
     fun addTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.insertTransaction(transaction)
         }
     }
 
-    // Adiciona nova categoria personalizada
     fun addCategory(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
@@ -59,7 +56,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Exclui categoria personalizada
     fun deleteCategory(category: CategoryEntity) {
         viewModelScope.launch {
             AppDatabase.getDatabase(getApplication())
@@ -68,7 +64,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Busca transações de um mês e ano específicos
     fun getTransactionsForMonth(year: Int, month: Int): Flow<List<TransactionEntity>> {
         val calendar = Calendar.getInstance().apply {
             set(year, month, 1, 0, 0, 0)
@@ -83,7 +78,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return dao.getTransactionsByDateRange(startDate, endDate)
     }
 
-    // Histórico geral de transações agrupando parcelas
     val allTransactions: Flow<List<TransactionEntity>> = AppDatabase.getDatabase(getApplication())
         .transactionDao()
         .getAllTransactions()
@@ -93,7 +87,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
             list.forEach { tx ->
                 val groupKey = if (!tx.installmentGroupId.isNullOrBlank()) {
-                    tx.installmentGroupId!!
+                    tx.installmentGroupId
                 } else if (tx.isInstallment) {
                     "${tx.title}_${tx.amount}_${tx.totalInstallments}"
                 } else {
@@ -123,7 +117,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Projeções futuras de parcelas
     fun getUpcomingProjections(): Flow<List<Pair<String, Double>>> {
         return AppDatabase.getDatabase(getApplication()).transactionDao().getAllTransactions().map { list ->
             val expenseList = list.filter { it.type == "EXPENSE" }
@@ -169,6 +162,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTransactionGroup(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransactionGroup(transaction)
+        }
+    }
+
+    // Exportação dos dados para formato JSON
+    suspend fun exportAllDataJson(): String {
+        val db = AppDatabase.getDatabase(getApplication())
+        val txList = db.transactionDao().getAllTransactionsList()
+        val catList = db.categoryDao().getAllCategoriesList()
+        return BackupManager.exportToJson(txList, catList)
+    }
+
+    // Importação do arquivo de backup JSON
+    fun importBackupData(jsonString: String, onComplete: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            try {
+                val data = BackupManager.parseJson(jsonString)
+                val db = AppDatabase.getDatabase(getApplication())
+
+                if (data.transactions.isNotEmpty()) {
+                    db.transactionDao().insertTransactions(data.transactions)
+                }
+                if (data.categories.isNotEmpty()) {
+                    db.categoryDao().insertCategories(data.categories)
+                }
+                onComplete(true)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                onComplete(false)
+            }
         }
     }
 }

@@ -1,5 +1,7 @@
 package com.example.gastofacil.ui.screens
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -16,12 +18,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.CategoryEntity
+import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.viewmodel.MainViewModel
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,7 +41,39 @@ fun AjustesScreen(
     var darkModeEnabled by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showCategoryDialog by remember { mutableStateOf(false) }
-    var showBackupMessage by remember { mutableStateOf(false) }
+
+    var showBackupModal by remember { mutableStateOf(false) }
+    var backupStatusMessage by remember { mutableStateOf<String?>(null) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+
+    // Launcher para criar arquivo local (Exportar)
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json")
+    ) { uri ->
+        if (uri != null) {
+            coroutineScope.launch {
+                val json = viewModel.exportAllDataJson()
+                val success = BackupManager.writeToUri(context, uri, json)
+                backupStatusMessage = if (success) "Backup local salvo com sucesso!" else "Erro ao salvar backup local."
+            }
+        }
+    }
+
+    // Launcher para abrir arquivo local (Importar)
+    val openDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            val json = BackupManager.readFromUri(context, uri)
+            if (json != null) {
+                viewModel.importBackupData(json) { success ->
+                    backupStatusMessage = if (success) "Dados importados com sucesso!" else "Erro ao ler formato do arquivo de backup."
+                }
+            }
+        }
+    }
 
     Scaffold(
         containerColor = SageBackground,
@@ -157,9 +196,9 @@ fun AjustesScreen(
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SageBackground)
                     AjusteActionItem(
                         icon = Icons.Default.Backup,
-                        title = "Exportar Backup",
-                        subtitle = "Salvar cópia de segurança dos lançamentos",
-                        onClick = { showBackupMessage = true }
+                        title = "Backup & Restauração",
+                        subtitle = "Exportar ou importar cópia de segurança (Local / Nuvem)",
+                        onClick = { showBackupModal = true }
                     )
                 }
             }
@@ -202,7 +241,6 @@ fun AjustesScreen(
             val categoriesList by viewModel.categories.collectAsState(initial = emptyList())
             var newCategoryName by remember { mutableStateOf("") }
 
-            // Estado para controlar a categoria selecionada para exclusão
             var categoryToDelete by remember { mutableStateOf<CategoryEntity?>(null) }
             var showConfirmDeleteCategoryDialog by remember { mutableStateOf(false) }
 
@@ -216,7 +254,6 @@ fun AjustesScreen(
                             .heightIn(max = 350.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        // Campo para criar nova categoria
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -248,7 +285,6 @@ fun AjustesScreen(
 
                         HorizontalDivider(color = SageBackground)
 
-                        // Lista de Categorias
                         LazyColumn(
                             verticalArrangement = Arrangement.spacedBy(6.dp),
                             modifier = Modifier
@@ -270,7 +306,6 @@ fun AjustesScreen(
                                         modifier = Modifier.weight(1f)
                                     )
 
-                                    // Ícone de lixeira no final de cada categoria
                                     IconButton(
                                         onClick = {
                                             categoryToDelete = cat
@@ -296,7 +331,6 @@ fun AjustesScreen(
                 }
             )
 
-            // Diálogo de Confirmação de Exclusão da Categoria
             if (showConfirmDeleteCategoryDialog && categoryToDelete != null) {
                 AlertDialog(
                     onDismissRequest = {
@@ -333,14 +367,91 @@ fun AjustesScreen(
             }
         }
 
-        // Diálogo de confirmação de backup
-        if (showBackupMessage) {
+        // Diálogo principal de opções de Backup
+        if (showBackupModal) {
             AlertDialog(
-                onDismissRequest = { showBackupMessage = false },
-                title = { Text("Backup Realizado") },
-                text = { Text("Os dados financeiros foram compactados e salvos com sucesso no armazenamento interno.") },
+                onDismissRequest = { showBackupModal = false },
+                title = { Text("Backup & Restauração", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Escolha a opção de exportação ou restauração dos seus lançamentos e categorias:", fontSize = 13.sp, color = Color.Gray)
+
+                        HorizontalDivider(color = SageBackground)
+
+                        Text("LOCAL (DISPOSITIVO)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            OutlinedButton(
+                                onClick = {
+                                    val filename = "GastoFacil_Backup_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}.json"
+                                    createDocumentLauncher.launch(filename)
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Exportar", fontSize = 12.sp)
+                            }
+
+                            OutlinedButton(
+                                onClick = {
+                                    openDocumentLauncher.launch(arrayOf("application/json", "*/*"))
+                                },
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Importar", fontSize = 12.sp)
+                            }
+                        }
+
+                        HorizontalDivider(color = SageBackground)
+
+                        Text("NUVEM (GOOGLE DRIVE)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen)
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Button(
+                                onClick = {
+                                    backupStatusMessage = "Conectando ao Google Drive..."
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.CloudUpload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Salvar Drive", fontSize = 12.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    backupStatusMessage = "Buscando backups no Google Drive..."
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(Icons.Default.CloudDownload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Baixar Drive", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                },
                 confirmButton = {
-                    Button(onClick = { showBackupMessage = false }) {
+                    TextButton(onClick = { showBackupModal = false }) {
+                        Text("Fechar")
+                    }
+                }
+            )
+        }
+
+        // Diálogo de mensagem de status (Sucesso / Erro)
+        if (backupStatusMessage != null) {
+            AlertDialog(
+                onDismissRequest = { backupStatusMessage = null },
+                title = { Text("Aviso de Backup") },
+                text = { Text(backupStatusMessage!!) },
+                confirmButton = {
+                    Button(onClick = { backupStatusMessage = null }) {
                         Text("OK")
                     }
                 }

@@ -1,8 +1,10 @@
 package com.example.gastofacil.data.local
 
 import androidx.room.Dao
+import androidx.room.Delete
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -25,16 +27,19 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions ORDER BY date DESC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 
-    // // Exclui todas as transações pertencentes a um mesmo grupo de parcelas
+    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    suspend fun getAllTransactionsList(): List<TransactionEntity>
+
+    // Exclui todas as transações pertencentes a um mesmo grupo de parcelas
     @Query("DELETE FROM transactions WHERE installmentGroupId = :groupId")
     suspend fun deleteTransactionsByGroupId(groupId: String)
 
-    @androidx.room.Delete
+    @Delete
     suspend fun deleteTransaction(transaction: TransactionEntity)
 
-    @androidx.room.Delete
+    @Delete
     suspend fun deleteTransactions(transactions: List<TransactionEntity>)
 
-    @androidx.room.Update
+    @Update
     suspend fun updateTransaction(transaction: TransactionEntity)
 }
