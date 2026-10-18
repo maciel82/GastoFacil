@@ -37,7 +37,7 @@ class DriveApiService(private val accessToken: String) {
         null
     }
 
-    // 2. Faz upload ou atualiza o ficheiro de backup no Drive
+    // 2. Faz upload ou atualiza o ficheiro de backup no Drive de forma segura
     suspend fun uploadBackup(jsonContent: String): Boolean = withContext(Dispatchers.IO) {
         try {
             val existingFileId = findBackupFileId()
