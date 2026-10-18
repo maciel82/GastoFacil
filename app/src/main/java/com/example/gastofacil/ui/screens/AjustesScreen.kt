@@ -58,8 +58,11 @@ fun AjustesScreen(
     val coroutineScope = rememberCoroutineScope()
 
     // Configuração do Google Sign-In solicitando permissão do Google Drive
+    val webClientId = "336149224462-apgli772p3vq5p52p62mssk69bv3jtkl.apps.googleusercontent.com"
+
     val gso = remember {
         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestIdToken(webClientId)
             .requestEmail()
             .requestScopes(Scope("https://www.googleapis.com/auth/drive.file"))
             .build()
@@ -70,7 +73,7 @@ fun AjustesScreen(
 
     val performDriveAction: (GoogleSignInAccount, String) -> Unit = { account, action ->
         coroutineScope.launch {
-            backupStatusMessage = "Conectando ao Google Drive..."
+            backupStatusMessage = "A conectar ao Google Drive..."
             try {
                 val token = withContext(Dispatchers.IO) {
                     GoogleAuthUtil.getToken(
@@ -81,17 +84,19 @@ fun AjustesScreen(
                 }
                 val driveApi = DriveApiService(token)
                 if (action == "UPLOAD") {
+                    backupStatusMessage = "A enviar backup para o Google Drive..."
                     val json = viewModel.exportAllDataJson()
                     val success = driveApi.uploadBackup(json)
-                    backupStatusMessage = if (success) "Backup salvo com sucesso no Google Drive!" else "Erro ao enviar backup para o Google Drive."
+                    backupStatusMessage = if (success) "Backup guardado no Google Drive com sucesso!" else "Falha ao enviar ficheiro para o Google Drive."
                 } else if (action == "DOWNLOAD") {
+                    backupStatusMessage = "A procurar backup no Google Drive..."
                     val json = driveApi.downloadBackup()
                     if (!json.isNullOrBlank()) {
                         viewModel.importBackupData(json) { success ->
-                            backupStatusMessage = if (success) "Backup do Google Drive restaurado com sucesso!" else "Erro ao processar dados do Google Drive."
+                            backupStatusMessage = if (success) "Restauro do Google Drive concluído com sucesso!" else "Erro ao processar o conteúdo do backup descarregado."
                         }
                     } else {
-                        backupStatusMessage = "Nenhum arquivo de backup foi encontrado na sua conta do Google Drive."
+                        backupStatusMessage = "Nenhum ficheiro de backup encontrado no Drive."
                     }
                 }
             } catch (e: Exception) {
@@ -126,6 +131,14 @@ fun AjustesScreen(
         } else {
             googleSignInLauncher.launch(googleSignInClient.signInIntent)
         }
+    }
+
+    fun handleGoogleDriveUpload() {
+        triggerDriveAction("UPLOAD")
+    }
+
+    fun handleGoogleDriveDownload() {
+        triggerDriveAction("DOWNLOAD")
     }
 
     // Launcher para criar arquivo local (Exportar)
@@ -492,7 +505,7 @@ fun AjustesScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
-                                    triggerDriveAction("UPLOAD")
+                                    handleGoogleDriveUpload()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
                                 modifier = Modifier.weight(1f)
@@ -504,7 +517,7 @@ fun AjustesScreen(
 
                             Button(
                                 onClick = {
-                                    triggerDriveAction("DOWNLOAD")
+                                    handleGoogleDriveDownload()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
                                 modifier = Modifier.weight(1f)
