@@ -28,6 +28,7 @@ import com.example.gastofacil.data.remote.DriveApiService
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.viewmodel.MainViewModel
 import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.UserRecoverableAuthException
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -52,6 +53,7 @@ fun AjustesScreen(
     var showCategoryDialog by remember { mutableStateOf(false) }
 
     var showBackupModal by remember { mutableStateOf(false) }
+    var isProcessingBackup by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
@@ -73,7 +75,8 @@ fun AjustesScreen(
 
     val performDriveAction: (GoogleSignInAccount, String) -> Unit = { account, action ->
         coroutineScope.launch {
-            backupStatusMessage = "A conectar ao Google Drive..."
+            isProcessingBackup = true
+            backupStatusMessage = "A obter credenciais do Google Drive..."
             try {
                 val token = withContext(Dispatchers.IO) {
                     GoogleAuthUtil.getToken(
@@ -87,20 +90,36 @@ fun AjustesScreen(
                     backupStatusMessage = "A enviar backup para o Google Drive..."
                     val json = viewModel.exportAllDataJson()
                     val success = driveApi.uploadBackup(json)
-                    backupStatusMessage = if (success) "Backup guardado no Google Drive com sucesso!" else "Falha ao enviar ficheiro para o Google Drive."
+                    isProcessingBackup = false
+                    backupStatusMessage = if (success) {
+                        "Backup guardado no Google Drive com sucesso!"
+                    } else {
+                        "Falha ao enviar ficheiro para o Google Drive."
+                    }
                 } else if (action == "DOWNLOAD") {
                     backupStatusMessage = "A procurar backup no Google Drive..."
                     val json = driveApi.downloadBackup()
                     if (!json.isNullOrBlank()) {
                         viewModel.importBackupData(json) { success ->
-                            backupStatusMessage = if (success) "Restauro do Google Drive concluído com sucesso!" else "Erro ao processar o conteúdo do backup descarregado."
+                            isProcessingBackup = false
+                            backupStatusMessage = if (success) {
+                                "Restauro do Google Drive concluído com sucesso!"
+                            } else {
+                                "Erro ao processar o conteúdo do backup descarregado."
+                            }
                         }
                     } else {
+                        isProcessingBackup = false
                         backupStatusMessage = "Nenhum ficheiro de backup encontrado no Drive."
                     }
                 }
+            } catch (e: UserRecoverableAuthException) {
+                e.printStackTrace()
+                isProcessingBackup = false
+                pendingDriveAction = action
             } catch (e: Exception) {
                 e.printStackTrace()
+                isProcessingBackup = false
                 backupStatusMessage = "Erro de autenticação com o Google Drive: ${e.message}"
             }
         }
@@ -118,27 +137,33 @@ fun AjustesScreen(
             }
         } catch (e: ApiException) {
             e.printStackTrace()
+            isProcessingBackup = false
             backupStatusMessage = "Falha no login com o Google (Código: ${e.statusCode})."
         }
     }
 
-    val triggerDriveAction: (String) -> Unit = { action ->
-        pendingDriveAction = action
-        val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
-        val hasScope = lastAccount != null && GoogleSignIn.hasPermissions(lastAccount, Scope("https://www.googleapis.com/auth/drive.file"))
-        if (hasScope && lastAccount != null) {
-            performDriveAction(lastAccount, action)
-        } else {
-            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+    fun handleGoogleDriveUpload() {
+        coroutineScope.launch {
+            val account = GoogleSignIn.getLastSignedInAccount(context)
+            if (account != null && account.account != null) {
+                performDriveAction(account, "UPLOAD")
+            } else {
+                pendingDriveAction = "UPLOAD"
+                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+            }
         }
     }
 
-    fun handleGoogleDriveUpload() {
-        triggerDriveAction("UPLOAD")
-    }
-
     fun handleGoogleDriveDownload() {
-        triggerDriveAction("DOWNLOAD")
+        coroutineScope.launch {
+            val account = GoogleSignIn.getLastSignedInAccount(context)
+            if (account != null && account.account != null) {
+                performDriveAction(account, "DOWNLOAD")
+            } else {
+                pendingDriveAction = "DOWNLOAD"
+                googleSignInLauncher.launch(googleSignInClient.signInIntent)
+            }
+        }
     }
 
     // Launcher para criar arquivo local (Exportar)
@@ -147,8 +172,10 @@ fun AjustesScreen(
     ) { uri ->
         if (uri != null) {
             coroutineScope.launch {
+                isProcessingBackup = true
                 val json = viewModel.exportAllDataJson()
                 val success = BackupManager.writeToUri(context, uri, json)
+                isProcessingBackup = false
                 backupStatusMessage = if (success) "Backup local salvo com sucesso!" else "Erro ao salvar backup local."
             }
         }
@@ -161,7 +188,9 @@ fun AjustesScreen(
         if (uri != null) {
             val json = BackupManager.readFromUri(context, uri)
             if (json != null) {
+                isProcessingBackup = true
                 viewModel.importBackupData(json) { success ->
+                    isProcessingBackup = false
                     backupStatusMessage = if (success) "Dados importados com sucesso!" else "Erro ao ler formato do arquivo de backup."
                 }
             }
@@ -463,11 +492,25 @@ fun AjustesScreen(
         // Diálogo principal de opções de Backup
         if (showBackupModal) {
             AlertDialog(
-                onDismissRequest = { showBackupModal = false },
+                onDismissRequest = { if (!isProcessingBackup) showBackupModal = false },
                 title = { Text("Backup & Restauração", fontWeight = FontWeight.Bold) },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Escolha a opção de exportação ou restauração dos seus lançamentos e categorias:", fontSize = 13.sp, color = Color.Gray)
+
+                        if (isProcessingBackup) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(color = DarkForestGreen, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("A processar comunicação...", fontSize = 13.sp, color = DarkForestGreen, fontWeight = FontWeight.Medium)
+                            }
+                        }
 
                         HorizontalDivider(color = SageBackground)
 
@@ -475,6 +518,7 @@ fun AjustesScreen(
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             OutlinedButton(
+                                enabled = !isProcessingBackup,
                                 onClick = {
                                     val filename = "GastoFacil_Backup_${SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())}.json"
                                     createDocumentLauncher.launch(filename)
@@ -487,6 +531,7 @@ fun AjustesScreen(
                             }
 
                             OutlinedButton(
+                                enabled = !isProcessingBackup,
                                 onClick = {
                                     openDocumentLauncher.launch(arrayOf("application/json", "*/*"))
                                 },
@@ -504,6 +549,7 @@ fun AjustesScreen(
 
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(
+                                enabled = !isProcessingBackup,
                                 onClick = {
                                     handleGoogleDriveUpload()
                                 },
@@ -516,6 +562,7 @@ fun AjustesScreen(
                             }
 
                             Button(
+                                enabled = !isProcessingBackup,
                                 onClick = {
                                     handleGoogleDriveDownload()
                                 },
@@ -530,7 +577,10 @@ fun AjustesScreen(
                     }
                 },
                 confirmButton = {
-                    TextButton(onClick = { showBackupModal = false }) {
+                    TextButton(
+                        enabled = !isProcessingBackup,
+                        onClick = { showBackupModal = false }
+                    ) {
                         Text("Fechar")
                     }
                 }

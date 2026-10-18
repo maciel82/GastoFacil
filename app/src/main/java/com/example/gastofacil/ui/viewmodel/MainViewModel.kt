@@ -165,7 +165,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    // Exportação dos dados para formato JSON
+    // Exportação dos dados brutos completos para formato JSON
     suspend fun exportAllDataJson(): String {
         val db = AppDatabase.getDatabase(getApplication())
         val txList = db.transactionDao().getAllTransactionsList()
@@ -173,7 +173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return BackupManager.exportToJson(txList, catList)
     }
 
-    // Importação do arquivo de backup JSON
+    // Importação do arquivo de backup JSON com desduplicação de categorias
     fun importBackupData(jsonString: String, onComplete: (Boolean) -> Unit) {
         viewModelScope.launch {
             try {
@@ -184,7 +184,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     db.transactionDao().insertTransactions(data.transactions)
                 }
                 if (data.categories.isNotEmpty()) {
-                    db.categoryDao().insertCategories(data.categories)
+                    val existingCatNames = db.categoryDao().getAllCategoriesList()
+                        .map { it.name.trim().lowercase() }.toSet()
+
+                    val uniqueNewCategories = data.categories
+                        .distinctBy { it.name.trim().lowercase() }
+                        .filter { it.name.trim().lowercase() !in existingCatNames }
+
+                    if (uniqueNewCategories.isNotEmpty()) {
+                        db.categoryDao().insertCategories(uniqueNewCategories)
+                    }
                 }
                 onComplete(true)
             } catch (e: Exception) {
