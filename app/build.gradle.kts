@@ -82,6 +82,10 @@ dependencies {
     // Ícones do Material Design
     implementation("androidx.compose.material:material-icons-extended:1.6.0")
 
+    // Google Play Services Auth & OkHttp (Para Google Drive Backup)
+    implementation("com.google.android.gms:play-services-auth:21.2.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")

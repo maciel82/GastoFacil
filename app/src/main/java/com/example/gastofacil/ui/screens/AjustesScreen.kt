@@ -24,9 +24,18 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.CategoryEntity
 import com.example.gastofacil.data.local.util.BackupManager
+import com.example.gastofacil.data.remote.DriveApiService
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.viewmodel.MainViewModel
+import com.google.android.gms.auth.GoogleAuthUtil
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInAccount
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
+import com.google.android.gms.common.api.Scope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,6 +56,77 @@ fun AjustesScreen(
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+
+    // Configuração do Google Sign-In solicitando permissão do Google Drive
+    val gso = remember {
+        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+            .requestEmail()
+            .requestScopes(Scope("https://www.googleapis.com/auth/drive.file"))
+            .build()
+    }
+    val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
+
+    var pendingDriveAction by remember { mutableStateOf<String?>(null) } // "UPLOAD" ou "DOWNLOAD"
+
+    val performDriveAction: (GoogleSignInAccount, String) -> Unit = { account, action ->
+        coroutineScope.launch {
+            backupStatusMessage = "Conectando ao Google Drive..."
+            try {
+                val token = withContext(Dispatchers.IO) {
+                    GoogleAuthUtil.getToken(
+                        context,
+                        account.account!!,
+                        "oauth2:https://www.googleapis.com/auth/drive.file"
+                    )
+                }
+                val driveApi = DriveApiService(token)
+                if (action == "UPLOAD") {
+                    val json = viewModel.exportAllDataJson()
+                    val success = driveApi.uploadBackup(json)
+                    backupStatusMessage = if (success) "Backup salvo com sucesso no Google Drive!" else "Erro ao enviar backup para o Google Drive."
+                } else if (action == "DOWNLOAD") {
+                    val json = driveApi.downloadBackup()
+                    if (!json.isNullOrBlank()) {
+                        viewModel.importBackupData(json) { success ->
+                            backupStatusMessage = if (success) "Backup do Google Drive restaurado com sucesso!" else "Erro ao processar dados do Google Drive."
+                        }
+                    } else {
+                        backupStatusMessage = "Nenhum arquivo de backup foi encontrado na sua conta do Google Drive."
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                backupStatusMessage = "Erro de autenticação com o Google Drive: ${e.message}"
+            }
+        }
+    }
+
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
+        try {
+            val account = task.getResult(ApiException::class.java)
+            val action = pendingDriveAction
+            if (account != null && action != null) {
+                performDriveAction(account, action)
+            }
+        } catch (e: ApiException) {
+            e.printStackTrace()
+            backupStatusMessage = "Falha no login com o Google (Código: ${e.statusCode})."
+        }
+    }
+
+    val triggerDriveAction: (String) -> Unit = { action ->
+        pendingDriveAction = action
+        val lastAccount = GoogleSignIn.getLastSignedInAccount(context)
+        val hasScope = lastAccount != null && GoogleSignIn.hasPermissions(lastAccount, Scope("https://www.googleapis.com/auth/drive.file"))
+        if (hasScope && lastAccount != null) {
+            performDriveAction(lastAccount, action)
+        } else {
+            googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        }
+    }
 
     // Launcher para criar arquivo local (Exportar)
     val createDocumentLauncher = rememberLauncherForActivityResult(
@@ -412,7 +492,7 @@ fun AjustesScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                             Button(
                                 onClick = {
-                                    backupStatusMessage = "Conectando ao Google Drive..."
+                                    triggerDriveAction("UPLOAD")
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
                                 modifier = Modifier.weight(1f)
@@ -424,7 +504,7 @@ fun AjustesScreen(
 
                             Button(
                                 onClick = {
-                                    backupStatusMessage = "Buscando backups no Google Drive..."
+                                    triggerDriveAction("DOWNLOAD")
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen),
                                 modifier = Modifier.weight(1f)
