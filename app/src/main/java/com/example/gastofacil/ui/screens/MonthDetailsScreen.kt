@@ -407,19 +407,31 @@ fun MonthDetailsScreen(
                                         Spacer(modifier = Modifier.width(12.dp))
 
                                         Column(modifier = Modifier.weight(1f)) {
+                                            val displayLocation = transaction.storeLocation?.ifBlank { null } ?: transaction.title
                                             Text(
-                                                text = transaction.title,
+                                                text = displayLocation,
                                                 fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp
+                                                fontSize = 16.sp,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
 
                                             val dateStr = dateFormat.format(Date(transaction.date))
+                                            val paymentLabel = when (transaction.paymentMethod) {
+                                                "CREDIT" -> "Crédito"
+                                                "DEBIT" -> "Débito"
+                                                "PIX" -> "PIX"
+                                                "MONEY" -> "Dinheiro"
+                                                else -> transaction.paymentMethod
+                                            }
                                             val bankLabel = transaction.bank?.let { " • $it" } ?: ""
 
                                             Text(
-                                                text = "$dateStr$bankLabel",
+                                                text = "$dateStr | $paymentLabel",
                                                 fontSize = 12.sp,
-                                                color = Color.Gray
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                         }
                                     }

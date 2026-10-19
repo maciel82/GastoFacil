@@ -465,7 +465,14 @@ fun HomeScreen(
                                         Column(
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            Text(text = transaction.title, fontWeight = FontWeight.Bold)
+                                            // Exibe o storeLocation se houver, caso contrário usa o title
+                                            val displayLocation = transaction.storeLocation?.ifBlank { null } ?: transaction.title
+                                            Text(
+                                                text = displayLocation,
+                                                fontWeight = FontWeight.Bold,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                            )
 
                                             val fullDateFormat = SimpleDateFormat("dd MMM", Locale("pt", "BR"))
                                             val dateStr = fullDateFormat.format(Date(transaction.date))
@@ -480,7 +487,9 @@ fun HomeScreen(
                                             Text(
                                                 text = "$dateStr | $paymentLabel",
                                                 fontSize = 12.sp,
-                                                color = Color.Gray
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                             )
                                         }
 

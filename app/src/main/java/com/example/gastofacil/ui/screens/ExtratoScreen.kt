@@ -223,12 +223,23 @@ fun ExtratoScreen(
                             Column(
                                 modifier = Modifier.weight(1f)
                             ) {
-                                Text(text = transaction.title, fontWeight = FontWeight.Bold)
-                                val dateStr = dateFormat.format(Date(transaction.date))
+                                val displayLocation = transaction.storeLocation?.ifBlank { null } ?: transaction.title
                                 Text(
-                                    text = "$dateStr | ${if (transaction.type == "INCOME") "Entrada" else (transaction.bank ?: transaction.paymentMethod)}",
+                                    text = displayLocation,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                )
+
+                                val dateStr = dateFormat.format(Date(transaction.date))
+                                val infoLabel = if (transaction.type == "INCOME") "Entrada" else (transaction.bank ?: transaction.paymentMethod)
+
+                                Text(
+                                    text = "$dateStr | $infoLabel",
                                     fontSize = 12.sp,
-                                    color = Color.Gray
+                                    color = Color.Gray,
+                                    maxLines = 1,
+                                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                                 )
                             }
 
