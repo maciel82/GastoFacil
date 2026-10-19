@@ -119,7 +119,7 @@ fun MonthDetailsScreen(
                 ),
                 title = {
                     Text(
-                        text = if (isSelecting) "${selectedIds.size} selecionados" else "Lançamentos",
+                        text = if (isSelecting) "${selectedIds.size} selecionados" else "Histórico financeiro",
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -154,8 +154,8 @@ fun MonthDetailsScreen(
                     onClick = onNavigateToHome
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Lançamentos") },
-                    label = { Text("Lançamentos") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Histórico") },
+                    label = { Text("Histórico") },
                     selected = true,
                     colors = NavigationBarItemDefaults.colors(indicatorColor = WarmGoldFab, selectedIconColor = DarkForestGreen, selectedTextColor = DarkForestGreen, unselectedIconColor = DarkForestGreen, unselectedTextColor = DarkForestGreen),
                     onClick = {}

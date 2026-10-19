@@ -83,8 +83,8 @@ fun ExtratoScreen(
                     onClick = onNavigateToHome
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Lançamentos") },
-                    label = { Text("Lançamentos") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Histórico") },
+                    label = { Text("Histórico") },
                     selected = false,
                     colors = NavigationBarItemDefaults.colors(
                         unselectedIconColor = DarkForestGreen,
