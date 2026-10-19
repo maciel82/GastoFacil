@@ -31,13 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.ui.components.AddTransactionDialog
+import com.example.gastofacil.ui.components.TransactionDetailsDialog
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.util.CategoryIconBox
 import com.example.gastofacil.ui.viewmodel.MainViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
-import com.example.gastofacil.ui.components.TransactionDetailsDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -67,6 +67,11 @@ fun HomeScreen(
 
     val totalExpenses = transactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
     val totalIncomes = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
+
+    // Notificação de limite de gastos mensais
+    LaunchedEffect(totalExpenses, selectedYear, selectedMonth) {
+        viewModel.checkBudgetAndNotify(selectedYear, selectedMonth, totalExpenses)
+    }
 
     // Gastos com pagamento imediato (PIX, DÉBITO, DINHEIRO) que descontam do saldo do mês
     val totalCashExpenses = transactions.filter { it.type == "EXPENSE" && it.paymentMethod != "CREDIT" }.sumOf { it.amount }
@@ -105,9 +110,9 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(TopBarHeaderGreen)
-                    .statusBarsPadding() // Respeita a barra de status do topo do celular
-                    .height(64.dp),      // Altura padrão da barra superior
-                contentAlignment = Alignment.BottomCenter // Cola o retângulo branco na linha inferior
+                    .statusBarsPadding()
+                    .height(64.dp),
+                contentAlignment = Alignment.BottomCenter
             ) {
                 Surface(
                     shape = RoundedCornerShape(
@@ -117,7 +122,7 @@ fun HomeScreen(
                         bottomEnd = 0.dp
                     ),
                     color = SageBackground,
-                    modifier = Modifier.height(44.dp) // Altura da aba branca encaixada na base
+                    modifier = Modifier.height(44.dp)
                 ) {
                     Box(
                         modifier = Modifier.padding(horizontal = 32.dp),
@@ -175,7 +180,6 @@ fun HomeScreen(
                     ),
                     onClick = onNavigateToExtrato
                 )
-                // Apenas um item de Ajustes único e funcional:
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
                     label = { Text("Ajustes") },
@@ -465,7 +469,6 @@ fun HomeScreen(
                                         Column(
                                             modifier = Modifier.weight(1f)
                                         ) {
-                                            // Exibe o storeLocation se houver, caso contrário usa o title
                                             val displayLocation = transaction.storeLocation?.ifBlank { null } ?: transaction.title
                                             Text(
                                                 text = displayLocation,

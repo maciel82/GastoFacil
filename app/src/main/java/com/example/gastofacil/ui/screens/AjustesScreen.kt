@@ -52,6 +52,10 @@ fun AjustesScreen(
     var notificationsEnabled by remember { mutableStateOf(true) }
     var showCategoryDialog by remember { mutableStateOf(false) }
 
+    var showBudgetDialog by remember { mutableStateOf(false) }
+    var budgetInputText by remember { mutableStateOf(if (viewModel.monthlyBudgetLimit > 0) viewModel.monthlyBudgetLimit.toString() else "") }
+    var applyAllMonthsSetting by remember { mutableStateOf(viewModel.applyLimitToAllMonths) }
+
     var showBackupModal by remember { mutableStateOf(false) }
     var isProcessingBackup by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
@@ -220,8 +224,8 @@ fun AjustesScreen(
                     onClick = onNavigateToHome
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Lançamentos") },
-                    label = { Text("Lançamentos") },
+                    icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Histórico") },
+                    label = { Text("Histórico") },
                     selected = false,
                     colors = NavigationBarItemDefaults.colors(
                         unselectedIconColor = DarkForestGreen,
@@ -314,6 +318,17 @@ fun AjustesScreen(
                         title = "Gerenciar Categorias",
                         subtitle = "Visualizar e gerenciar categorias",
                         onClick = { showCategoryDialog = true }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SageBackground)
+                    AjusteActionItem(
+                        icon = Icons.Default.Warning,
+                        title = "Limite de Gastos Mensais",
+                        subtitle = if (viewModel.monthlyBudgetLimit > 0) "Limite: R$ ${viewModel.monthlyBudgetLimit}" else "Nenhum limite configurado",
+                        onClick = {
+                            budgetInputText = if (viewModel.monthlyBudgetLimit > 0) viewModel.monthlyBudgetLimit.toString() else ""
+                            applyAllMonthsSetting = viewModel.applyLimitToAllMonths
+                            showBudgetDialog = true
+                        }
                     )
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SageBackground)
                     AjusteActionItem(
@@ -487,6 +502,62 @@ fun AjustesScreen(
                     }
                 )
             }
+        }
+
+        // Diálogo de configuração de Limite de Gastos
+        if (showBudgetDialog) {
+            AlertDialog(
+                onDismissRequest = { showBudgetDialog = false },
+                title = { Text("Configurar Limite de Gastos", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("Defina o valor máximo que deseja gastar no mês:", fontSize = 13.sp, color = Color.Gray)
+
+                        OutlinedTextField(
+                            value = budgetInputText,
+                            onValueChange = { budgetInputText = it },
+                            label = { Text("Valor Limite (R$)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Aplicar a todos os meses?", fontSize = 14.sp)
+                            Switch(
+                                checked = applyAllMonthsSetting,
+                                onCheckedChange = { applyAllMonthsSetting = it },
+                                colors = SwitchDefaults.colors(checkedThumbColor = WarmGoldFab)
+                            )
+                        }
+                        Text(
+                            text = if (applyAllMonthsSetting) "O limite valerá para qualquer mês selecionado." else "O limite valerá apenas para o mês atual do calendário.",
+                            fontSize = 11.sp,
+                            color = Color.Gray
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val limit = budgetInputText.replace(",", ".").toDoubleOrNull() ?: 0.0
+                            viewModel.updateBudgetSettings(limit, applyAllMonthsSetting)
+                            showBudgetDialog = false
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen)
+                    ) {
+                        Text("Salvar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showBudgetDialog = false }) {
+                        Text("Cancelar")
+                    }
+                }
+            )
         }
 
         // Diálogo principal de opções de Backup

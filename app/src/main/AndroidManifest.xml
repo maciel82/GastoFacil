@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- ADICIONE ESTA PERMISSÃO AQUI -->
+    <!-- permissao para acesso ao googledrive -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Notificações -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:allowBackup="true"

@@ -1,6 +1,15 @@
 package com.example.gastofacil.ui.viewmodel
 
 import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.content.Context
+import android.os.Build
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gastofacil.data.local.AppDatabase
@@ -11,6 +20,7 @@ import com.example.gastofacil.data.repository.TransactionRepository
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -23,10 +33,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         .categoryDao()
         .getAllCategories()
 
+    private val prefs = application.getSharedPreferences("gastofacil_prefs", Context.MODE_PRIVATE)
+
+    var monthlyBudgetLimit by mutableStateOf(prefs.getFloat("monthly_budget_limit", 0f).toDouble())
+        private set
+
+    var applyLimitToAllMonths by mutableStateOf(prefs.getBoolean("apply_limit_all_months", true))
+        private set
+
     init {
         val database = AppDatabase.getDatabase(application)
         val transactionDao = database.transactionDao()
         repository = TransactionRepository(transactionDao)
+
+        createNotificationChannel()
 
         viewModelScope.launch {
             val categoryDao = database.categoryDao()
@@ -38,6 +58,67 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ).map { CategoryEntity(name = it, isDefault = true) }
                 categoryDao.insertCategories(defaultCategories)
             }
+        }
+    }
+
+    fun updateBudgetSettings(limit: Double, applyToAll: Boolean) {
+        monthlyBudgetLimit = limit
+        applyLimitToAllMonths = applyToAll
+        prefs.edit().apply {
+            putFloat("monthly_budget_limit", limit.toFloat())
+            putBoolean("apply_limit_all_months", applyToAll)
+            apply()
+        }
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                "budget_channel",
+                "Alertas de Orçamento",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Notificações de limite de gastos mensais atingido"
+            }
+            val notificationManager = getApplication<Application>().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    fun checkBudgetAndNotify(year: Int, month: Int, totalExpenses: Double) {
+        if (monthlyBudgetLimit <= 0.0) return
+
+        val shouldCheck = if (applyLimitToAllMonths) {
+            true
+        } else {
+            val currentCal = Calendar.getInstance()
+            currentCal.get(Calendar.YEAR) == year && currentCal.get(Calendar.MONTH) == month
+        }
+
+        if (shouldCheck && totalExpenses >= monthlyBudgetLimit) {
+            sendBudgetNotification(totalExpenses, monthlyBudgetLimit)
+        }
+    }
+
+    private fun sendBudgetNotification(currentExpense: Double, limit: Double) {
+        val context = getApplication<Application>()
+        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+        val formattedExpense = currencyFormat.format(currentExpense)
+        val formattedLimit = currencyFormat.format(limit)
+
+        val builder = NotificationCompat.Builder(context, "budget_channel")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle("⚠️ Limite de Gastos Atingido!")
+            .setContentText("Seus gastos ($formattedExpense) ultrapassaram o limite de $formattedLimit.")
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+
+        try {
+            with(NotificationManagerCompat.from(context)) {
+                notify(1001, builder.build())
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
         }
     }
 
