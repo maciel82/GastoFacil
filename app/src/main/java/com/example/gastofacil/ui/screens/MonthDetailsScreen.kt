@@ -6,17 +6,13 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.ReceiptLong
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.ChevronLeft
-import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
@@ -35,8 +31,9 @@ import com.example.gastofacil.ui.viewmodel.MainViewModel
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
 fun MonthDetailsScreen(
     viewModel: MainViewModel,
@@ -65,20 +62,40 @@ fun MonthDetailsScreen(
     var transactionToDelete by remember { mutableStateOf<TransactionEntity?>(null) }
     var showSingleDeleteGroupDialog by remember { mutableStateOf(false) }
     var showAddDialog by remember { mutableStateOf(false) }
-
-    // Estado para exibir os detalhes do lançamento ao clicar no card
     var transactionToViewDetails by remember { mutableStateOf<TransactionEntity?>(null) }
+
+    // Estados para Filtros Avançados (Múltipla Seleção)
+    var searchQuery by remember { mutableStateOf("") }
+    var selectedBanks by remember { mutableStateOf(setOf<String>()) }       // Vazio = Todos
+    var selectedCategories by remember { mutableStateOf(setOf<String>()) } // Vazio = Todas
+    var showFilterDialog by remember { mutableStateOf(false) }
 
     val isSelecting = selectedIds.isNotEmpty()
 
-    val filteredTransactions = when (selectedTab) {
-        0 -> transactions.filter { it.paymentMethod == "CREDIT" }
-        1 -> transactions.filter { it.paymentMethod == "DEBIT_PIX" || it.paymentMethod == "PIX" || it.paymentMethod == "DEBIT" }
-        else -> transactions.filter { it.paymentMethod == "MONEY" }
+    // Categorias disponíveis limpas de duplicatas
+    val categoriesList by viewModel.categories.collectAsState(initial = emptyList())
+    val uniqueCategories = remember(categoriesList) { categoriesList.distinctBy { it.name } }
+    val bankOptions = remember { listOf("Nubank", "PicPay", "RecargaPay", "Outro") }
+
+    // Filtragem combinada atualizada para Múltipla Seleção
+    val filteredTransactions = transactions.filter { tx ->
+        val matchesTab = when (selectedTab) {
+            0 -> tx.paymentMethod == "CREDIT"
+            1 -> tx.paymentMethod == "DEBIT" || tx.paymentMethod == "PIX" || tx.paymentMethod == "DEBIT_PIX"
+            else -> tx.paymentMethod == "MONEY"
+        }
+
+        val matchesSearch = searchQuery.isBlank() ||
+                tx.title.contains(searchQuery, ignoreCase = true) ||
+                (tx.storeLocation?.contains(searchQuery, ignoreCase = true) == true)
+
+        val matchesBank = selectedBanks.isEmpty() || (tx.bank != null && selectedBanks.contains(tx.bank))
+        val matchesCategory = selectedCategories.isEmpty() || selectedCategories.contains(tx.category)
+
+        matchesTab && matchesSearch && matchesBank && matchesCategory
     }
 
     val totalExpensesInTab = filteredTransactions.filter { it.type == "EXPENSE" }.sumOf { it.amount }
-
     val totalIncomesInMonth = transactions.filter { it.type == "INCOME" }.sumOf { it.amount }
     val totalCashExpensesInMonth = transactions.filter { it.type == "EXPENSE" && it.paymentMethod != "CREDIT" }.sumOf { it.amount }
     val monthBalance = totalIncomesInMonth - totalCashExpensesInMonth
@@ -89,6 +106,8 @@ fun MonthDetailsScreen(
     val monthTitleText = remember(selectedCalendar) {
         monthFormat.format(selectedCalendar.time).uppercase(Locale("pt", "BR"))
     }
+
+    val hasActiveFilters = searchQuery.isNotBlank() || selectedBanks.isNotEmpty() || selectedCategories.isNotEmpty()
 
     Scaffold(
         containerColor = SageBackground,
@@ -109,55 +128,50 @@ fun MonthDetailsScreen(
                         IconButton(onClick = { showDeleteDialog = true }) {
                             Icon(Icons.Default.Delete, contentDescription = "Excluir Selecionados", tint = Color.White)
                         }
+                    } else {
+                        IconButton(onClick = { showFilterDialog = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (hasActiveFilters) {
+                                        Badge(containerColor = WarmGoldFab)
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.FilterList, contentDescription = "Filtros Avançados", tint = Color.White)
+                            }
+                        }
                     }
                 }
             )
         },
         bottomBar = {
-            NavigationBar(
-                containerColor = SageCardBackground
-            ) {
+            NavigationBar(containerColor = SageCardBackground) {
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Home, contentDescription = "Início") },
                     label = { Text("Início") },
                     selected = false,
-                    colors = NavigationBarItemDefaults.colors(
-                        unselectedIconColor = DarkForestGreen,
-                        unselectedTextColor = DarkForestGreen
-                    ),
+                    colors = NavigationBarItemDefaults.colors(unselectedIconColor = DarkForestGreen, unselectedTextColor = DarkForestGreen),
                     onClick = onNavigateToHome
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Lançamentos") },
                     label = { Text("Lançamentos") },
                     selected = true,
-                    colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = WarmGoldFab,
-                        selectedIconColor = DarkForestGreen,
-                        selectedTextColor = DarkForestGreen,
-                        unselectedIconColor = DarkForestGreen,
-                        unselectedTextColor = DarkForestGreen
-                    ),
+                    colors = NavigationBarItemDefaults.colors(indicatorColor = WarmGoldFab, selectedIconColor = DarkForestGreen, selectedTextColor = DarkForestGreen, unselectedIconColor = DarkForestGreen, unselectedTextColor = DarkForestGreen),
                     onClick = {}
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.AutoMirrored.Filled.ReceiptLong, contentDescription = "Extrato") },
                     label = { Text("Extrato") },
                     selected = false,
-                    colors = NavigationBarItemDefaults.colors(
-                        unselectedIconColor = DarkForestGreen,
-                        unselectedTextColor = DarkForestGreen
-                    ),
+                    colors = NavigationBarItemDefaults.colors(unselectedIconColor = DarkForestGreen, unselectedTextColor = DarkForestGreen),
                     onClick = onNavigateToExtrato
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
                     label = { Text("Ajustes") },
                     selected = false,
-                    colors = NavigationBarItemDefaults.colors(
-                        unselectedIconColor = DarkForestGreen,
-                        unselectedTextColor = DarkForestGreen
-                    ),
+                    colors = NavigationBarItemDefaults.colors(unselectedIconColor = DarkForestGreen, unselectedTextColor = DarkForestGreen),
                     onClick = onNavigateToAjustes
                 )
             }
@@ -177,8 +191,31 @@ fun MonthDetailsScreen(
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Pesquisar Lançamento") },
+                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = DarkForestGreen) },
+                trailingIcon = {
+                    if (searchQuery.isNotBlank()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Clear, contentDescription = "Limpar busca", tint = Color.Gray)
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = Color.White,
+                    unfocusedContainerColor = Color.White,
+                    focusedBorderColor = DarkForestGreen,
+                    unfocusedBorderColor = Color.Transparent
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = DarkForestGreen),
@@ -217,56 +254,19 @@ fun MonthDetailsScreen(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
 
                     Text(
                         text = currencyFormat.format(totalExpensesInTab),
-                        fontSize = 32.sp,
+                        fontSize = 28.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFFEF9A9A)
                     )
                     Text(
-                        text = "Gastos Acumulados",
+                        text = if (hasActiveFilters) "Gastos Filtrados" else "Gastos Acumulados",
                         fontSize = 12.sp,
                         color = Color.White.copy(alpha = 0.8f)
                     )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = Color.White.copy(alpha = 0.3f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = currencyFormat.format(totalIncomesInMonth),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF81C784)
-                            )
-                            Text(
-                                text = "Receita do Mês",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(
-                                text = currencyFormat.format(monthBalance),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (monthBalance >= 0) Color.White else Color(0xFFEF9A9A)
-                            )
-                            Text(
-                                text = "Saldo do Mês",
-                                fontSize = 11.sp,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
                 }
             }
 
@@ -287,7 +287,7 @@ fun MonthDetailsScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("CARTÃO DE CRÉDITO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen) }
+                    text = { Text("CRÉDITO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen) }
                 )
                 Tab(
                     selected = selectedTab == 1,
@@ -334,13 +334,11 @@ fun MonthDetailsScreen(
                                 SwipeToDismissBoxValue.StartToEnd -> BrandGastoGreen
                                 else -> Color.Transparent
                             }
-
                             val alignment = when (dismissState.dismissDirection) {
                                 SwipeToDismissBoxValue.EndToStart -> Alignment.CenterEnd
                                 SwipeToDismissBoxValue.StartToEnd -> Alignment.CenterStart
                                 else -> Alignment.Center
                             }
-
                             val icon = when (dismissState.dismissDirection) {
                                 SwipeToDismissBoxValue.EndToStart -> Icons.Default.Delete
                                 SwipeToDismissBoxValue.StartToEnd -> Icons.Default.Edit
@@ -355,11 +353,7 @@ fun MonthDetailsScreen(
                                 contentAlignment = alignment
                             ) {
                                 if (icon != null) {
-                                    Icon(
-                                        imageVector = icon,
-                                        contentDescription = null,
-                                        tint = Color.White
-                                    )
+                                    Icon(imageVector = icon, contentDescription = null, tint = Color.White)
                                 }
                             }
                         },
@@ -372,7 +366,6 @@ fun MonthDetailsScreen(
                                             if (isSelecting) {
                                                 selectedIds = if (isSelected) selectedIds - transaction.id else selectedIds + transaction.id
                                             } else {
-                                                // Exibe os detalhes da transação ao clicar
                                                 transactionToViewDetails = transaction
                                             }
                                         },
@@ -413,9 +406,7 @@ fun MonthDetailsScreen(
 
                                         Spacer(modifier = Modifier.width(12.dp))
 
-                                        Column(
-                                            modifier = Modifier.weight(1f)
-                                        ) {
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = transaction.title,
                                                 fontWeight = FontWeight.Bold,
@@ -423,16 +414,10 @@ fun MonthDetailsScreen(
                                             )
 
                                             val dateStr = dateFormat.format(Date(transaction.date))
-                                            val paymentLabel = when (transaction.paymentMethod) {
-                                                "CREDIT" -> "Crédito"
-                                                "DEBIT" -> "Débito"
-                                                "PIX" -> "PIX"
-                                                "MONEY" -> "Dinheiro"
-                                                else -> transaction.paymentMethod
-                                            }
+                                            val bankLabel = transaction.bank?.let { " • $it" } ?: ""
 
                                             Text(
-                                                text = "$dateStr | $paymentLabel",
+                                                text = "$dateStr$bankLabel",
                                                 fontSize = 12.sp,
                                                 color = Color.Gray
                                             )
@@ -441,9 +426,7 @@ fun MonthDetailsScreen(
 
                                     Spacer(modifier = Modifier.width(8.dp))
 
-                                    Column(
-                                        horizontalAlignment = Alignment.End
-                                    ) {
+                                    Column(horizontalAlignment = Alignment.End) {
                                         Text(
                                             text = (if (transaction.type == "INCOME") "+ " else "- ") + currencyFormat.format(transaction.amount),
                                             fontWeight = FontWeight.Bold,
@@ -468,38 +451,109 @@ fun MonthDetailsScreen(
             }
         }
 
-        // Diálogo de confirmação para editar (ativado pelo Swipe para a direita)
-        if (showEditConfirmDialog && transactionToConfirmEdit != null) {
+        // Diálogo de Filtros Avançados (Com rolagem vertical e multi-seleção)
+        if (showFilterDialog) {
             AlertDialog(
-                onDismissRequest = {
-                    showEditConfirmDialog = false
-                    transactionToConfirmEdit = null
-                },
-                title = { Text("Confirmar Edição") },
-                text = { Text("Deseja realmente editar o lançamento \"${transactionToConfirmEdit?.title}\"?") },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            transactionToEdit = transactionToConfirmEdit
-                            showEditConfirmDialog = false
-                            transactionToConfirmEdit = null
-                        }
+                onDismissRequest = { showFilterDialog = false },
+                title = { Text("Filtros Avançados", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp) // Altura máxima para ativar rolagem
+                            .verticalScroll(rememberScrollState()), // Permite rolar a tela do diálogo
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Text("Sim, Editar")
+                        Text("Filtrar por Banco:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            FilterChip(
+                                selected = selectedBanks.isEmpty(),
+                                onClick = { selectedBanks = emptySet() },
+                                label = { Text("Todos") }
+                            )
+                            bankOptions.forEach { bank ->
+                                val isSelected = selectedBanks.contains(bank)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        selectedBanks = if (isSelected) {
+                                            selectedBanks - bank
+                                        } else {
+                                            selectedBanks + bank
+                                        }
+                                    },
+                                    label = { Text(bank) }
+                                )
+                            }
+                        }
+
+                        HorizontalDivider(color = SageBackground)
+
+                        Text("Filtrar por Categoria:", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = DarkForestGreen)
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            FilterChip(
+                                selected = selectedCategories.isEmpty(),
+                                onClick = { selectedCategories = emptySet() },
+                                label = { Text("Todas") }
+                            )
+                            uniqueCategories.forEach { cat ->
+                                val isSelected = selectedCategories.contains(cat.name)
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = {
+                                        selectedCategories = if (isSelected) {
+                                            selectedCategories - cat.name
+                                        } else {
+                                            selectedCategories + cat.name
+                                        }
+                                    },
+                                    label = { Text(cat.name) }
+                                )
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = { showFilterDialog = false }) {
+                        Text("Aplicar Filtros")
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = {
-                        showEditConfirmDialog = false
-                        transactionToConfirmEdit = null
+                        selectedBanks = emptySet()
+                        selectedCategories = emptySet()
+                        searchQuery = ""
+                        showFilterDialog = false
                     }) {
-                        Text("Cancelar")
+                        Text("Limpar Tudo")
                     }
                 }
             )
         }
 
-        // Diálogo de visualização de detalhes ao clicar no card
+        // Diálogos auxiliares (Edição, Exclusão, Detalhes)
+        if (showEditConfirmDialog && transactionToConfirmEdit != null) {
+            AlertDialog(
+                onDismissRequest = { showEditConfirmDialog = false; transactionToConfirmEdit = null },
+                title = { Text("Confirmar Edição") },
+                text = { Text("Deseja realmente editar o lançamento \"${transactionToConfirmEdit?.title}\"?") },
+                confirmButton = {
+                    Button(onClick = { transactionToEdit = transactionToConfirmEdit; showEditConfirmDialog = false; transactionToConfirmEdit = null }) {
+                        Text("Sim, Editar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showEditConfirmDialog = false; transactionToConfirmEdit = null }) { Text("Cancelar") }
+                }
+            )
+        }
+
         if (transactionToViewDetails != null) {
             TransactionDetailsDialog(
                 transaction = transactionToViewDetails!!,
@@ -525,9 +579,7 @@ fun MonthDetailsScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showSingleDeleteGroupDialog = false }) {
-                        Text("Cancelar")
-                    }
+                    TextButton(onClick = { showSingleDeleteGroupDialog = false }) { Text("Cancelar") }
                 }
             )
         }
@@ -551,9 +603,7 @@ fun MonthDetailsScreen(
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showDeleteDialog = false }) {
-                        Text("Cancelar")
-                    }
+                    TextButton(onClick = { showDeleteDialog = false }) { Text("Cancelar") }
                 }
             )
         }
