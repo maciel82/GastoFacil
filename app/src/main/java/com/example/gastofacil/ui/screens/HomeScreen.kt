@@ -70,7 +70,7 @@ fun HomeScreen(
 
     // Notificação de limite de gastos mensais
     LaunchedEffect(totalExpenses, selectedYear, selectedMonth) {
-        viewModel.checkBudgetAndNotify(selectedYear, selectedMonth, totalExpenses)
+        viewModel.checkAllBudgetsAcrossMonths()
     }
 
     // Gastos com pagamento imediato (PIX, DÉBITO, DINHEIRO) que descontam do saldo do mês

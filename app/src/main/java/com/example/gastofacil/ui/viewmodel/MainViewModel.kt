@@ -58,17 +58,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 ).map { CategoryEntity(name = it, isDefault = true) }
                 categoryDao.insertCategories(defaultCategories)
             }
+            checkAllBudgetsAcrossMonths()
         }
     }
 
     fun updateBudgetSettings(limit: Double, applyToAll: Boolean) {
         monthlyBudgetLimit = limit
         applyLimitToAllMonths = applyToAll
-        prefs.edit().apply {
-            putFloat("monthly_budget_limit", limit.toFloat())
-            putBoolean("apply_limit_all_months", applyToAll)
-            apply()
+        
+        val editor = prefs.edit()
+        editor.putFloat("monthly_budget_limit", limit.toFloat())
+        editor.putBoolean("apply_limit_all_months", applyToAll)
+        // Limpa patamares armazenados anteriormente para que a nova configuração de limite possa reavaliar e notificar imediatamente
+        prefs.all.keys.filter { it.startsWith("notified_tier_") }.forEach { key ->
+            editor.remove(key)
         }
+        editor.apply()
+
+        checkAllBudgetsAcrossMonths()
     }
 
     private fun createNotificationChannel() {
@@ -78,7 +85,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 "Alertas de Orçamento",
                 NotificationManager.IMPORTANCE_HIGH
             ).apply {
-                description = "Notificações de limite de gastos mensais atingido"
+                description = "Notificações de limite de gastos mensais e parcelamentos futuros"
+                enableVibration(true)
+                enableLights(true)
             }
             val notificationManager = getApplication<Application>().getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             notificationManager.createNotificationChannel(channel)
@@ -86,36 +95,107 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun checkBudgetAndNotify(year: Int, month: Int, totalExpenses: Double) {
+        checkAllBudgetsAcrossMonths()
+    }
+
+    // Varre o mês atual e os próximos 12 meses (para capturar parcelamentos futuros)
+    fun checkAllBudgetsAcrossMonths() {
         if (monthlyBudgetLimit <= 0.0) return
 
-        val shouldCheck = if (applyLimitToAllMonths) {
-            true
-        } else {
-            val currentCal = Calendar.getInstance()
-            currentCal.get(Calendar.YEAR) == year && currentCal.get(Calendar.MONTH) == month
-        }
+        viewModelScope.launch {
+            val db = AppDatabase.getDatabase(getApplication())
+            val allTx = db.transactionDao().getAllTransactionsList()
+            val expenseList = allTx.filter { it.type == "EXPENSE" }
 
-        if (shouldCheck && totalExpenses >= monthlyBudgetLimit) {
-            sendBudgetNotification(totalExpenses, monthlyBudgetLimit)
+            val calendar = Calendar.getInstance()
+            val currentYear = calendar.get(Calendar.YEAR)
+            val currentMonth = calendar.get(Calendar.MONTH)
+
+            // Analisa do mês atual até 12 meses à frente
+            for (i in 0..12) {
+                val calIter = Calendar.getInstance().apply {
+                    set(currentYear, currentMonth, 1, 0, 0, 0)
+                    set(Calendar.MILLISECOND, 0)
+                    add(Calendar.MONTH, i)
+                }
+                val y = calIter.get(Calendar.YEAR)
+                val m = calIter.get(Calendar.MONTH)
+
+                // Se a regra for apenas para o mês atual e não estivermos nele, pula
+                if (!applyLimitToAllMonths && i > 0) continue
+
+                // Soma os gastos reais do mês (incluindo parcelas futuras que caem nele)
+                val totalExpMonth = expenseList.filter { tx ->
+                    val txCal = Calendar.getInstance().apply { timeInMillis = tx.date }
+                    txCal.get(Calendar.YEAR) == y && txCal.get(Calendar.MONTH) == m
+                }.sumOf { it.amount }
+
+                evaluateAndNotifyThreshold(y, m, totalExpMonth, monthlyBudgetLimit)
+            }
         }
     }
 
-    private fun sendBudgetNotification(currentExpense: Double, limit: Double) {
+    private fun evaluateAndNotifyThreshold(year: Int, month: Int, expenses: Double, limit: Double) {
+        if (limit <= 0.0) return
+
+        val percentage = (expenses / limit) * 100.0
+        val currentTier = when {
+            percentage >= 100.0 -> 100
+            percentage >= 90.0 -> 90
+            percentage >= 80.0 -> 80
+            percentage >= 70.0 -> 70
+            else -> 0
+        }
+
+        // Chave única por mês/ano para armazenar o último nível notificado
+        val prefKey = "notified_tier_${year}_$month"
+        val lastTier = prefs.getInt(prefKey, 0)
+
+        if (currentTier > lastTier) {
+            // Se o patamar atual subiu em relação ao último notificado, atualiza e dispara o novo alerta
+            prefs.edit().putInt(prefKey, currentTier).apply()
+
+            val monthFormat = SimpleDateFormat("MMMM yyyy", Locale("pt", "BR"))
+            val cal = Calendar.getInstance().apply {
+                set(year, month, 1)
+            }
+            val monthName = monthFormat.format(cal.time).uppercase(Locale("pt", "BR"))
+
+            sendTierNotification(monthName, expenses, limit, currentTier)
+        } else if (currentTier < lastTier) {
+            // Se os gastos diminuíram (ex: cancelou compra), reseta o nível
+            prefs.edit().putInt(prefKey, currentTier).apply()
+        }
+    }
+
+    private fun sendTierNotification(monthName: String, expenses: Double, limit: Double, tier: Int) {
         val context = getApplication<Application>()
         val currencyFormat = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
-        val formattedExpense = currencyFormat.format(currentExpense)
+        val formattedExp = currencyFormat.format(expenses)
         val formattedLimit = currencyFormat.format(limit)
+
+        val title = when (tier) {
+            100 -> "🚨 Limite Ultrapassado em $monthName!"
+            90 -> "⚠️ Atenção: 90% do Limite em $monthName!"
+            80 -> "⚠️ Alerta: 80% do Limite em $monthName!"
+            else -> "ℹ️ Aviso: 70% do Limite em $monthName"
+        }
+
+        val text = "Gastos acumulados de $formattedExp (Limite: $formattedLimit)."
 
         val builder = NotificationCompat.Builder(context, "budget_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
-            .setContentTitle("⚠️ Limite de Gastos Atingido!")
-            .setContentText("Seus gastos ($formattedExpense) ultrapassaram o limite de $formattedLimit.")
+            .setContentTitle(title)
+            .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
             .setAutoCancel(true)
 
         try {
             with(NotificationManagerCompat.from(context)) {
-                notify(1001, builder.build())
+                // ID único combinando o mês e o nível para permitir múltiplas notificações simultâneas
+                notify("$monthName-$tier".hashCode(), builder.build())
             }
         } catch (e: SecurityException) {
             e.printStackTrace()
@@ -125,6 +205,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun addTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.insertTransaction(transaction)
+            checkAllBudgetsAcrossMonths()
         }
     }
 
@@ -189,12 +270,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTransactions(transactions: List<TransactionEntity>) {
         viewModelScope.launch {
             repository.deleteTransactions(transactions)
+            checkAllBudgetsAcrossMonths()
         }
     }
 
     fun updateTransaction(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.updateTransaction(transaction)
+            checkAllBudgetsAcrossMonths()
         }
     }
 
@@ -243,6 +326,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteTransactionGroup(transaction: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransactionGroup(transaction)
+            checkAllBudgetsAcrossMonths()
         }
     }
 
@@ -276,6 +360,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         db.categoryDao().insertCategories(uniqueNewCategories)
                     }
                 }
+                checkAllBudgetsAcrossMonths()
                 onComplete(true)
             } catch (e: Exception) {
                 e.printStackTrace()
