@@ -28,7 +28,8 @@ fun MenuScreen(
     onNavigateToHome: () -> Unit,
     onNavigateToLancamentos: () -> Unit,
     onNavigateToExtrato: () -> Unit,
-    onNavigateToAjustes: () -> Unit
+    onNavigateToAjustes: () -> Unit,
+    onNavigateToAnalytics: () -> Unit
 ) {
     val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
     var showNotificationsDialog by remember { mutableStateOf(false) }
@@ -118,6 +119,27 @@ fun MenuScreen(
                     subtitle = if (unreadNotificationsCount > 0) "Histórico de avisos ($unreadNotificationsCount novos)" else "Histórico de limites e avisos",
                     badgeCount = unreadNotificationsCount,
                     onClick = { showNotificationsDialog = true }
+                )
+            }
+
+            // Seção: Análises e Relatórios
+            Text(
+                text = "ANÁLISES E RELATÓRIOS",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.Gray
+            )
+
+            Card(
+                shape = RoundedCornerShape(12.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                MenuActionItem(
+                    icon = Icons.Default.PieChart,
+                    title = "Analytics & Gráficos",
+                    subtitle = "Gastos por categoria e banco",
+                    onClick = onNavigateToAnalytics
                 )
             }
 

@@ -16,6 +16,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.gastofacil.ui.components.AddTransactionDialog
 import com.example.gastofacil.ui.screens.AjustesScreen
+import com.example.gastofacil.ui.screens.AnalyticsScreen
 import com.example.gastofacil.ui.screens.ExtratoScreen
 import com.example.gastofacil.ui.screens.HomeScreen
 import com.example.gastofacil.ui.screens.MenuScreen
@@ -77,7 +78,14 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToHome = { navController.navigate("home") { popUpTo("home") { inclusive = true } } },
                                 onNavigateToLancamentos = { navController.navigate("details") },
                                 onNavigateToExtrato = { navController.navigate("extrato") },
-                                onNavigateToAjustes = { navController.navigate("ajustes") }
+                                onNavigateToAjustes = { navController.navigate("ajustes") },
+                                onNavigateToAnalytics = { navController.navigate("analytics") }
+                            )
+                        }
+                        composable("analytics") {
+                            AnalyticsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
                             )
                         }
                         composable("ajustes") {
