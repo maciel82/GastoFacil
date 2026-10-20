@@ -18,6 +18,7 @@ import com.example.gastofacil.ui.components.AddTransactionDialog
 import com.example.gastofacil.ui.screens.AjustesScreen
 import com.example.gastofacil.ui.screens.ExtratoScreen
 import com.example.gastofacil.ui.screens.HomeScreen
+import com.example.gastofacil.ui.screens.MenuScreen
 import com.example.gastofacil.ui.screens.MonthDetailsScreen
 import com.example.gastofacil.ui.theme.GastoFacilTheme
 import com.example.gastofacil.ui.viewmodel.MainViewModel
@@ -51,7 +52,7 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToLancamentos = { navController.navigate("details") },
                                 onNavigateToDetails = { navController.navigate("details") },
                                 onOpenAddDialog = { showAddDialog = true },
-                                onNavigateToAjustes = { navController.navigate("ajustes") }
+                                onNavigateToMenu = { navController.navigate("menu") }
                             )
                         }
                         composable("extrato") {
@@ -59,13 +60,22 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onNavigateToHome = { navController.navigate("home") { popUpTo("home") { inclusive = true } } },
                                 onNavigateToLancamentos = { navController.navigate("details") },
-                                onNavigateToAjustes = { navController.navigate("ajustes") }
+                                onNavigateToMenu = { navController.navigate("menu") }
                             )
                         }
                         composable("details") {
                             MonthDetailsScreen(
                                 viewModel = viewModel,
                                 onNavigateToHome = { navController.navigate("home") { popUpTo("home") { inclusive = true } } },
+                                onNavigateToExtrato = { navController.navigate("extrato") },
+                                onNavigateToMenu = { navController.navigate("menu") }
+                            )
+                        }
+                        composable("menu") {
+                            MenuScreen(
+                                viewModel = viewModel,
+                                onNavigateToHome = { navController.navigate("home") { popUpTo("home") { inclusive = true } } },
+                                onNavigateToLancamentos = { navController.navigate("details") },
                                 onNavigateToExtrato = { navController.navigate("extrato") },
                                 onNavigateToAjustes = { navController.navigate("ajustes") }
                             )
@@ -75,7 +85,8 @@ class MainActivity : ComponentActivity() {
                                 viewModel = viewModel,
                                 onNavigateToHome = { navController.navigate("home") { popUpTo("home") { inclusive = true } } },
                                 onNavigateToLancamentos = { navController.navigate("details") },
-                                onNavigateToExtrato = { navController.navigate("extrato") }
+                                onNavigateToExtrato = { navController.navigate("extrato") },
+                                onNavigateToMenu = { navController.navigate("menu") { popUpTo("menu") { inclusive = true } } }
                             )
                         }
                     }

@@ -25,7 +25,6 @@ import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.CategoryEntity
 import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.data.remote.DriveApiService
-import com.example.gastofacil.ui.components.NotificationsDialog
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.viewmodel.MainViewModel
 import com.google.android.gms.auth.GoogleAuthUtil
@@ -47,7 +46,8 @@ fun AjustesScreen(
     viewModel: MainViewModel,
     onNavigateToHome: () -> Unit,
     onNavigateToLancamentos: () -> Unit,
-    onNavigateToExtrato: () -> Unit
+    onNavigateToExtrato: () -> Unit,
+    onNavigateToMenu: () -> Unit
 ) {
     var darkModeEnabled by remember { mutableStateOf(false) }
     var notificationsEnabled by remember { mutableStateOf(true) }
@@ -60,9 +60,6 @@ fun AjustesScreen(
     var showBackupModal by remember { mutableStateOf(false) }
     var isProcessingBackup by remember { mutableStateOf(false) }
     var backupStatusMessage by remember { mutableStateOf<String?>(null) }
-
-    val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
-    var showNotificationsDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -212,25 +209,7 @@ fun AjustesScreen(
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = Color.White
                 ),
-                title = { Text("Ajustes & Preferências", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { showNotificationsDialog = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadNotificationsCount > 0) {
-                                    Badge(
-                                        containerColor = ExpenseRedText,
-                                        contentColor = Color.White
-                                    ) {
-                                        Text(if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString())
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notificações", tint = DarkForestGreen)
-                        }
-                    }
-                }
+                title = { Text("Ajustes & Preferências", fontWeight = FontWeight.Bold) }
             )
         },
         bottomBar = {
@@ -266,17 +245,14 @@ fun AjustesScreen(
                     onClick = onNavigateToExtrato
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
-                    label = { Text("Ajustes") },
-                    selected = true,
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Menu") },
+                    label = { Text("Menu") },
+                    selected = false,
                     colors = NavigationBarItemDefaults.colors(
-                        indicatorColor = WarmGoldFab,
-                        selectedIconColor = DarkForestGreen,
-                        selectedTextColor = DarkForestGreen,
                         unselectedIconColor = DarkForestGreen,
                         unselectedTextColor = DarkForestGreen
                     ),
-                    onClick = {}
+                    onClick = onNavigateToMenu
                 )
             }
         }
@@ -691,13 +667,6 @@ fun AjustesScreen(
                         Text("OK")
                     }
                 }
-            )
-        }
-
-        if (showNotificationsDialog) {
-            NotificationsDialog(
-                viewModel = viewModel,
-                onDismiss = { showNotificationsDialog = false }
             )
         }
     }

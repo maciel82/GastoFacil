@@ -10,7 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -20,7 +20,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.gastofacil.ui.components.NotificationsDialog
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.util.CategoryIconBox
 import com.example.gastofacil.ui.viewmodel.MainViewModel
@@ -34,7 +33,7 @@ fun ExtratoScreen(
     viewModel: MainViewModel,
     onNavigateToHome: () -> Unit,
     onNavigateToLancamentos: () -> Unit,
-    onNavigateToAjustes: () -> Unit
+    onNavigateToMenu: () -> Unit
 ) {
     var selectedCalendar by remember { mutableStateOf(Calendar.getInstance()) }
     val selectedYear = selectedCalendar[Calendar.YEAR]
@@ -59,9 +58,6 @@ fun ExtratoScreen(
         monthFormat.format(selectedCalendar.time).uppercase(Locale("pt", "BR"))
     }
 
-    val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
-    var showNotificationsDialog by remember { mutableStateOf(false) }
-
     Scaffold(
         containerColor = SageBackground,
         topBar = {
@@ -70,25 +66,7 @@ fun ExtratoScreen(
                     containerColor = TopBarHeaderGreen,
                     titleContentColor = Color.White
                 ),
-                title = { Text("Extrato do Saldo", fontWeight = FontWeight.Bold) },
-                actions = {
-                    IconButton(onClick = { showNotificationsDialog = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadNotificationsCount > 0) {
-                                    Badge(
-                                        containerColor = ExpenseRedText,
-                                        contentColor = Color.White
-                                    ) {
-                                        Text(if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString())
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notificações", tint = Color.White)
-                        }
-                    }
-                }
+                title = { Text("Extrato do Saldo", fontWeight = FontWeight.Bold) }
             )
         },
         bottomBar = {
@@ -129,14 +107,14 @@ fun ExtratoScreen(
                     onClick = {}
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
-                    label = { Text("Ajustes") },
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Menu") },
+                    label = { Text("Menu") },
                     selected = false,
                     colors = NavigationBarItemDefaults.colors(
                         unselectedIconColor = DarkForestGreen,
                         unselectedTextColor = DarkForestGreen
                     ),
-                    onClick = onNavigateToAjustes
+                    onClick = onNavigateToMenu
                 )
             }
         }
@@ -278,12 +256,5 @@ fun ExtratoScreen(
                 }
             }
         }
-    }
-
-    if (showNotificationsDialog) {
-        NotificationsDialog(
-            viewModel = viewModel,
-            onDismiss = { showNotificationsDialog = false }
-        )
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -49,7 +50,7 @@ fun HomeScreen(
     onNavigateToLancamentos: () -> Unit,
     onNavigateToDetails: () -> Unit,
     onOpenAddDialog: () -> Unit,
-    onNavigateToAjustes: () -> Unit
+    onNavigateToMenu: () -> Unit
 ) {
     var selectedCalendar by remember { mutableStateOf(Calendar.getInstance()) }
     val selectedYear = selectedCalendar[Calendar.YEAR]
@@ -214,14 +215,14 @@ fun HomeScreen(
                     onClick = onNavigateToExtrato
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Settings, contentDescription = "Ajustes") },
-                    label = { Text("Ajustes") },
+                    icon = { Icon(Icons.Default.Menu, contentDescription = "Menu") },
+                    label = { Text("Menu") },
                     selected = false,
                     colors = NavigationBarItemDefaults.colors(
                         unselectedIconColor = DarkForestGreen,
                         unselectedTextColor = DarkForestGreen
                     ),
-                    onClick = onNavigateToAjustes
+                    onClick = onNavigateToMenu
                 )
             }
         },
