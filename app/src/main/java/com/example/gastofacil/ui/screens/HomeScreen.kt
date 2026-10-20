@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.ui.components.AddTransactionDialog
+import com.example.gastofacil.ui.components.NotificationsDialog
 import com.example.gastofacil.ui.components.TransactionDetailsDialog
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.util.CategoryIconBox
@@ -103,6 +105,9 @@ fun HomeScreen(
 
     var transactionToViewDetails by remember { mutableStateOf<TransactionEntity?>(null) }
 
+    val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = SageBackground,
         topBar = {
@@ -122,10 +127,14 @@ fun HomeScreen(
                         bottomEnd = 0.dp
                     ),
                     color = SageBackground,
-                    modifier = Modifier.height(44.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
                 ) {
                     Box(
-                        modifier = Modifier.padding(horizontal = 32.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -139,6 +148,30 @@ fun HomeScreen(
                             },
                             fontSize = 21.sp
                         )
+
+                        IconButton(
+                            onClick = { showNotificationsDialog = true },
+                            modifier = Modifier.align(Alignment.CenterEnd)
+                        ) {
+                            BadgedBox(
+                                badge = {
+                                    if (unreadNotificationsCount > 0) {
+                                        Badge(
+                                            containerColor = ExpenseRedText,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString())
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Notifications,
+                                    contentDescription = "Notificações",
+                                    tint = DarkForestGreen
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -601,6 +634,13 @@ fun HomeScreen(
                 TransactionDetailsDialog(
                     transaction = transactionToViewDetails!!,
                     onDismiss = { transactionToViewDetails = null }
+                )
+            }
+
+            if (showNotificationsDialog) {
+                NotificationsDialog(
+                    viewModel = viewModel,
+                    onDismiss = { showNotificationsDialog = false }
                 )
             }
         }

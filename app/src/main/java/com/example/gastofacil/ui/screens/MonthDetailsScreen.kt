@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.ui.components.AddTransactionDialog
+import com.example.gastofacil.ui.components.NotificationsDialog
 import com.example.gastofacil.ui.components.TransactionDetailsDialog
 import com.example.gastofacil.ui.theme.*
 import com.example.gastofacil.ui.util.CategoryIconBox
@@ -109,6 +110,9 @@ fun MonthDetailsScreen(
 
     val hasActiveFilters = searchQuery.isNotBlank() || selectedBanks.isNotEmpty() || selectedCategories.isNotEmpty()
 
+    val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
+    var showNotificationsDialog by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = SageBackground,
         topBar = {
@@ -129,6 +133,22 @@ fun MonthDetailsScreen(
                             Icon(Icons.Default.Delete, contentDescription = "Excluir Selecionados", tint = Color.White)
                         }
                     } else {
+                        IconButton(onClick = { showNotificationsDialog = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (unreadNotificationsCount > 0) {
+                                        Badge(
+                                            containerColor = ExpenseRedText,
+                                            contentColor = Color.White
+                                        ) {
+                                            Text(if (unreadNotificationsCount > 99) "99+" else unreadNotificationsCount.toString())
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Notifications, contentDescription = "Notificações", tint = Color.White)
+                            }
+                        }
                         IconButton(onClick = { showFilterDialog = true }) {
                             BadgedBox(
                                 badge = {
@@ -632,6 +652,13 @@ fun MonthDetailsScreen(
             AddTransactionDialog(
                 viewModel = viewModel,
                 onDismiss = { showAddDialog = false }
+            )
+        }
+
+        if (showNotificationsDialog) {
+            NotificationsDialog(
+                viewModel = viewModel,
+                onDismiss = { showNotificationsDialog = false }
             )
         }
     }

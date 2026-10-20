@@ -14,6 +14,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gastofacil.data.local.AppDatabase
 import com.example.gastofacil.data.local.CategoryEntity
+import com.example.gastofacil.data.local.NotificationEntity
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.data.repository.TransactionRepository
@@ -32,6 +33,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val categories: Flow<List<CategoryEntity>> = AppDatabase.getDatabase(application)
         .categoryDao()
         .getAllCategories()
+
+    val allNotifications: Flow<List<NotificationEntity>> = AppDatabase.getDatabase(application)
+        .notificationDao()
+        .getAllNotifications()
+
+    val unreadNotificationsCount: Flow<Int> = AppDatabase.getDatabase(application)
+        .notificationDao()
+        .getUnreadCount()
 
     private val prefs = application.getSharedPreferences("gastofacil_prefs", Context.MODE_PRIVATE)
 
@@ -175,13 +184,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val formattedLimit = currencyFormat.format(limit)
 
         val title = when (tier) {
-            100 -> "🚨 Limite Ultrapassado em $monthName!"
-            90 -> "⚠️ Atenção: 90% do Limite em $monthName!"
-            80 -> "⚠️ Alerta: 80% do Limite em $monthName!"
-            else -> "ℹ️ Aviso: 70% do Limite em $monthName"
+            100 -> "🚨 Limite atingido! em $monthName!"
+            90 -> "⚠️ 90% do Limite em $monthName!"
+            80 -> "⚠️ 80% do Limite em $monthName!"
+            else -> "ℹ️ 70% do Limite em $monthName"
         }
 
-        val text = "Gastos acumulados de $formattedExp (Limite: $formattedLimit)."
+        val text = "$monthName: Gastos acumulados de $formattedExp (Limite: $formattedLimit)."
 
         val builder = NotificationCompat.Builder(context, "budget_channel")
             .setSmallIcon(android.R.drawable.ic_dialog_alert)
@@ -199,6 +208,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         } catch (e: SecurityException) {
             e.printStackTrace()
+        }
+
+        // Salva registro no histórico de notificações do banco local
+        viewModelScope.launch {
+            val entity = NotificationEntity(
+                title = title,
+                message = text,
+                timestamp = System.currentTimeMillis(),
+                isRead = false,
+                tier = tier,
+                monthName = monthName
+            )
+            AppDatabase.getDatabase(getApplication())
+                .notificationDao()
+                .insertNotification(entity)
+        }
+    }
+
+    fun markNotificationAsRead(id: Long) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .notificationDao()
+                .markAsRead(id)
+        }
+    }
+
+    fun markAllNotificationsAsRead() {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .notificationDao()
+                .markAllAsRead()
+        }
+    }
+
+    fun clearAllNotifications() {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .notificationDao()
+                .clearAllNotifications()
         }
     }
 
