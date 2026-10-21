@@ -14,7 +14,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.gastofacil.data.local.AppDatabase
 import com.example.gastofacil.data.local.CategoryEntity
+import com.example.gastofacil.data.local.GoalEntity
 import com.example.gastofacil.data.local.NotificationEntity
+import com.example.gastofacil.data.local.RecurringBillEntity
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.data.repository.TransactionRepository
@@ -416,4 +418,168 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }
     }
+
+    // --- METAS & CAIXINHAS ---
+    val allGoals: Flow<List<GoalEntity>> = AppDatabase.getDatabase(application)
+        .goalDao()
+        .getAllGoals()
+
+    fun addGoal(name: String, targetAmount: Double, deadlineDate: Long? = null) {
+        if (name.isBlank() || targetAmount <= 0.0) return
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .goalDao()
+                .insertGoal(GoalEntity(name = name.trim(), targetAmount = targetAmount, deadlineDate = deadlineDate))
+        }
+    }
+
+    fun updateGoal(goal: GoalEntity) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .goalDao()
+                .updateGoal(goal)
+        }
+    }
+
+    fun deleteGoal(goal: GoalEntity) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .goalDao()
+                .deleteGoal(goal)
+        }
+    }
+
+    fun depositToGoal(goal: GoalEntity, amount: Double) {
+        if (amount <= 0.0) return
+        viewModelScope.launch {
+            val updated = goal.copy(currentAmount = goal.currentAmount + amount)
+            AppDatabase.getDatabase(getApplication())
+                .goalDao()
+                .updateGoal(updated)
+        }
+    }
+
+    fun withdrawFromGoal(goal: GoalEntity, amount: Double) {
+        if (amount <= 0.0) return
+        viewModelScope.launch {
+            val newAmt = (goal.currentAmount - amount).coerceAtLeast(0.0)
+            val updated = goal.copy(currentAmount = newAmt)
+            AppDatabase.getDatabase(getApplication())
+                .goalDao()
+                .updateGoal(updated)
+        }
+    }
+
+    // --- CONTAS FIXAS & VENCIMENTOS ---
+    val allRecurringBills: Flow<List<RecurringBillEntity>> = AppDatabase.getDatabase(application)
+        .recurringBillDao()
+        .getAllRecurringBills()
+
+    fun addRecurringBill(title: String, amount: Double, dueDay: Int, category: String, bank: String? = null) {
+        if (title.isBlank() || amount <= 0.0) return
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .recurringBillDao()
+                .insertRecurringBill(
+                    RecurringBillEntity(
+                        title = title.trim(),
+                        amount = amount,
+                        dueDay = dueDay.coerceIn(1, 31),
+                        category = category.ifBlank { "Contas de casa" },
+                        bank = bank
+                    )
+                )
+        }
+    }
+
+    fun updateRecurringBill(bill: RecurringBillEntity) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .recurringBillDao()
+                .updateRecurringBill(bill)
+        }
+    }
+
+    fun deleteRecurringBill(bill: RecurringBillEntity) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .recurringBillDao()
+                .deleteRecurringBill(bill)
+        }
+    }
+
+    fun toggleBillPaidStatus(bill: RecurringBillEntity) {
+        viewModelScope.launch {
+            val updated = bill.copy(isPaidThisMonth = !bill.isPaidThisMonth)
+            AppDatabase.getDatabase(getApplication())
+                .recurringBillDao()
+                .updateRecurringBill(updated)
+        }
+    }
+
+    // --- PAINEL DE PARCELADOS ---
+    val allInstallmentSummaries: Flow<List<InstallmentGroupSummary>> = AppDatabase.getDatabase(getApplication())
+        .transactionDao()
+        .getAllTransactions()
+        .map { list ->
+            val installmentTx = list.filter { it.isInstallment || !it.installmentGroupId.isNullOrBlank() }
+            val grouped = installmentTx.groupBy {
+                if (!it.installmentGroupId.isNullOrBlank()) {
+                    it.installmentGroupId
+                } else {
+                    "${it.title}_${it.amount}_${it.totalInstallments}"
+                }
+            }
+
+            val nowMs = System.currentTimeMillis()
+
+            grouped.map { (groupId, txList) ->
+                val sortedTx = txList.sortedBy { it.currentInstallment }
+                val sample = sortedTx.first()
+                val totalInst = sample.totalInstallments
+                val instAmount = sample.amount
+                val totalOriginal = instAmount * totalInst
+
+                val paidTx = sortedTx.filter { it.date <= nowMs }
+                val remainingTx = sortedTx.filter { it.date > nowMs }
+
+                val paidCount = paidTx.size.coerceAtMost(totalInst)
+                val remainingCount = (totalInst - paidCount).coerceAtLeast(0)
+
+                val paidAmt = paidTx.sumOf { it.amount }
+                val remainingAmt = remainingTx.sumOf { it.amount }
+
+                InstallmentGroupSummary(
+                    groupId = groupId ?: "",
+                    title = sample.title,
+                    category = sample.category,
+                    bank = sample.bank,
+                    paymentMethod = sample.paymentMethod,
+                    totalInstallments = totalInst,
+                    installmentAmount = instAmount,
+                    totalOriginalAmount = totalOriginal,
+                    paidAmount = paidAmt,
+                    remainingAmount = remainingAmt,
+                    paidInstallmentsCount = paidCount,
+                    remainingInstallmentsCount = remainingCount,
+                    installmentsList = sortedTx
+                )
+            }.sortedByDescending { it.remainingAmount }
+        }
 }
+
+data class InstallmentGroupSummary(
+    val groupId: String,
+    val title: String,
+    val category: String,
+    val bank: String?,
+    val paymentMethod: String,
+    val totalInstallments: Int,
+    val installmentAmount: Double,
+    val totalOriginalAmount: Double,
+    val paidAmount: Double,
+    val remainingAmount: Double,
+    val paidInstallmentsCount: Int,
+    val remainingInstallmentsCount: Int,
+    val installmentsList: List<TransactionEntity>
+)

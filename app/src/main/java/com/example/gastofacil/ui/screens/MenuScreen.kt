@@ -29,7 +29,10 @@ fun MenuScreen(
     onNavigateToLancamentos: () -> Unit,
     onNavigateToExtrato: () -> Unit,
     onNavigateToAjustes: () -> Unit,
-    onNavigateToAnalytics: () -> Unit
+    onNavigateToAnalytics: () -> Unit,
+    onNavigateToGoals: () -> Unit = {},
+    onNavigateToRecurringBills: () -> Unit = {},
+    onNavigateToInstallments: () -> Unit = {}
 ) {
     val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
     var showNotificationsDialog by remember { mutableStateOf(false) }
@@ -122,9 +125,9 @@ fun MenuScreen(
                 )
             }
 
-            // Seção: Análises e Relatórios
+            // Seção: Ferramentas Financeiras
             Text(
-                text = "ANÁLISES E RELATÓRIOS",
+                text = "FERRAMENTAS FINANCEIRAS",
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.Gray
@@ -135,12 +138,35 @@ fun MenuScreen(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                MenuActionItem(
-                    icon = Icons.Default.PieChart,
-                    title = "Analytics & Gráficos",
-                    subtitle = "Gastos por categoria e banco",
-                    onClick = onNavigateToAnalytics
-                )
+                Column {
+                    MenuActionItem(
+                        icon = Icons.Default.Savings,
+                        title = "Metas & Caixinhas",
+                        subtitle = "Guarde dinheiro e acompanhe objetivos",
+                        onClick = onNavigateToGoals
+                    )
+                    HorizontalDivider(color = SageBackground, thickness = 1.dp)
+                    MenuActionItem(
+                        icon = Icons.Default.CalendarMonth,
+                        title = "Contas Fixas & Vencimentos",
+                        subtitle = "Controle de despesas recorrentes do mês",
+                        onClick = onNavigateToRecurringBills
+                    )
+                    HorizontalDivider(color = SageBackground, thickness = 1.dp)
+                    MenuActionItem(
+                        icon = Icons.Default.CreditCard,
+                        title = "Painel de Compras Parceladas",
+                        subtitle = "Visão geral de parcelas futuras e saldo devedor",
+                        onClick = onNavigateToInstallments
+                    )
+                    HorizontalDivider(color = SageBackground, thickness = 1.dp)
+                    MenuActionItem(
+                        icon = Icons.Default.PieChart,
+                        title = "Analytics & Gráficos",
+                        subtitle = "Gastos por categoria e banco",
+                        onClick = onNavigateToAnalytics
+                    )
+                }
             }
 
             // Seção: Configurações

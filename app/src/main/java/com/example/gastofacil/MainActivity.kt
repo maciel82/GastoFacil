@@ -18,9 +18,12 @@ import com.example.gastofacil.ui.components.AddTransactionDialog
 import com.example.gastofacil.ui.screens.AjustesScreen
 import com.example.gastofacil.ui.screens.AnalyticsScreen
 import com.example.gastofacil.ui.screens.ExtratoScreen
+import com.example.gastofacil.ui.screens.GoalsScreen
 import com.example.gastofacil.ui.screens.HomeScreen
+import com.example.gastofacil.ui.screens.InstallmentsScreen
 import com.example.gastofacil.ui.screens.MenuScreen
 import com.example.gastofacil.ui.screens.MonthDetailsScreen
+import com.example.gastofacil.ui.screens.RecurringBillsScreen
 import com.example.gastofacil.ui.theme.GastoFacilTheme
 import com.example.gastofacil.ui.viewmodel.MainViewModel
 
@@ -79,11 +82,32 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToLancamentos = { navController.navigate("details") },
                                 onNavigateToExtrato = { navController.navigate("extrato") },
                                 onNavigateToAjustes = { navController.navigate("ajustes") },
-                                onNavigateToAnalytics = { navController.navigate("analytics") }
+                                onNavigateToAnalytics = { navController.navigate("analytics") },
+                                onNavigateToGoals = { navController.navigate("goals") },
+                                onNavigateToRecurringBills = { navController.navigate("recurring_bills") },
+                                onNavigateToInstallments = { navController.navigate("installments") }
                             )
                         }
                         composable("analytics") {
                             AnalyticsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("goals") {
+                            GoalsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("recurring_bills") {
+                            RecurringBillsScreen(
+                                viewModel = viewModel,
+                                onNavigateBack = { navController.popBackStack() }
+                            )
+                        }
+                        composable("installments") {
+                            InstallmentsScreen(
                                 viewModel = viewModel,
                                 onNavigateBack = { navController.popBackStack() }
                             )

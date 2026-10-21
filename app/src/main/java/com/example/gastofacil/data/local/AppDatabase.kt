@@ -9,12 +9,24 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
-@Database(entities = [TransactionEntity::class, CategoryEntity::class, NotificationEntity::class], version = 5, exportSchema = false)
+@Database(
+    entities = [
+        TransactionEntity::class,
+        CategoryEntity::class,
+        NotificationEntity::class,
+        GoalEntity::class,
+        RecurringBillEntity::class
+    ],
+    version = 6,
+    exportSchema = false
+)
 abstract class AppDatabase : RoomDatabase() {
 
     abstract fun transactionDao(): TransactionDao
     abstract fun categoryDao(): CategoryDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun goalDao(): GoalDao
+    abstract fun recurringBillDao(): RecurringBillDao
 
     companion object {
         @Volatile
