@@ -13,6 +13,9 @@ interface RecurringBillDao {
     @Query("SELECT * FROM recurring_bills ORDER BY dueDay ASC")
     fun getAllRecurringBills(): Flow<List<RecurringBillEntity>>
 
+    @Query("SELECT * FROM recurring_bills ORDER BY dueDay ASC")
+    suspend fun getAllRecurringBillsList(): List<RecurringBillEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecurringBill(bill: RecurringBillEntity)
 

@@ -70,6 +70,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 categoryDao.insertCategories(defaultCategories)
             }
             checkAllBudgetsAcrossMonths()
+            checkRecurringBillsDueSoon()
         }
     }
 
@@ -260,6 +261,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun addCategory(name: String) {
+
         if (name.isBlank()) return
         viewModelScope.launch {
             AppDatabase.getDatabase(getApplication())
@@ -489,6 +491,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         bank = bank
                     )
                 )
+            checkRecurringBillsDueSoon()
         }
     }
 
@@ -497,6 +500,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppDatabase.getDatabase(getApplication())
                 .recurringBillDao()
                 .updateRecurringBill(bill)
+            checkRecurringBillsDueSoon()
         }
     }
 
@@ -514,6 +518,80 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             AppDatabase.getDatabase(getApplication())
                 .recurringBillDao()
                 .updateRecurringBill(updated)
+            checkRecurringBillsDueSoon()
+        }
+    }
+
+    fun checkRecurringBillsDueSoon() {
+        viewModelScope.launch {
+            val database = AppDatabase.getDatabase(getApplication())
+            val bills = database.recurringBillDao().getAllRecurringBillsList()
+
+            val calendar = Calendar.getInstance()
+            val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+            val currentMonth = calendar.get(Calendar.MONTH)
+            val currentYear = calendar.get(Calendar.YEAR)
+
+            bills.filter { !it.isPaidThisMonth }.forEach { bill ->
+                val daysUntilDue = bill.dueDay - currentDay
+
+                // Notifica se faltam 3 dias, 1 dia ou se vence hoje
+                if (daysUntilDue in 0..3) {
+                    val prefKey = "notified_bill_${bill.id}_${currentYear}_${currentMonth}_${bill.dueDay}"
+                    val alreadyNotified = prefs.getBoolean(prefKey, false)
+
+                    if (!alreadyNotified) {
+                        prefs.edit().putBoolean(prefKey, true).apply()
+                        sendBillNotification(bill.title, bill.amount, daysUntilDue, bill.dueDay)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun sendBillNotification(title: String, amount: Double, daysUntilDue: Int, dueDay: Int) {
+        val context = getApplication<Application>()
+        val currencyFormat = NumberFormat.getCurrencyInstance(Locale("pt", "BR"))
+        val formattedAmount = currencyFormat.format(amount)
+
+        val notifTitle = when (daysUntilDue) {
+            0 -> "🚨 Vence Hoje: $title!"
+            1 -> "⚠️ Vence Amanhã: $title!"
+            else -> "⚠️ Conta Próxima do Vencimento: $title"
+        }
+
+        val notifText = "A conta no valor de $formattedAmount vence no dia $dueDay."
+
+        val builder = NotificationCompat.Builder(context, "budget_channel")
+            .setSmallIcon(android.R.drawable.ic_dialog_alert)
+            .setContentTitle(notifTitle)
+            .setContentText(notifText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(notifText))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+            .setAutoCancel(true)
+
+        try {
+            with(NotificationManagerCompat.from(context)) {
+                notify("bill-${title}-${dueDay}".hashCode(), builder.build())
+            }
+        } catch (e: SecurityException) {
+            e.printStackTrace()
+        }
+
+        // Salva na Central de Alertas
+        viewModelScope.launch {
+            val entity = NotificationEntity(
+                title = notifTitle,
+                message = notifText,
+                timestamp = System.currentTimeMillis(),
+                isRead = false,
+                tier = if (daysUntilDue == 0) 100 else 80,
+                monthName = "VENCIMENTO DIA $dueDay"
+            )
+            AppDatabase.getDatabase(getApplication())
+                .notificationDao()
+                .insertNotification(entity)
         }
     }
 
