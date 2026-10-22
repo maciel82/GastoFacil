@@ -335,6 +335,17 @@ fun AjustesScreen(
                         subtitle = "Exportar ou importar cópia de segurança (Local / Nuvem)",
                         onClick = { showBackupModal = true }
                     )
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = SageBackground)
+                    val isListenerActive = remember(context) { viewModel.isNotificationServiceEnabled(context) }
+                    AjusteActionItem(
+                        icon = Icons.Default.NotificationsActive,
+                        title = "Leitura Automática de Bancos",
+                        subtitle = if (isListenerActive) "Ativado e escutando notificações" else "Desativado - Toque para ativar",
+                        onClick = {
+                            val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                            context.startActivity(intent)
+                        }
+                    )
                 }
             }
 

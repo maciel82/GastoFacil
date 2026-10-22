@@ -15,9 +15,10 @@ import kotlinx.coroutines.launch
         CategoryEntity::class,
         NotificationEntity::class,
         GoalEntity::class,
-        RecurringBillEntity::class
+        RecurringBillEntity::class,
+        SuggestedTransactionEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -27,6 +28,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun notificationDao(): NotificationDao
     abstract fun goalDao(): GoalDao
     abstract fun recurringBillDao(): RecurringBillDao
+    abstract fun suggestedTransactionDao(): SuggestedTransactionDao
 
     companion object {
         @Volatile

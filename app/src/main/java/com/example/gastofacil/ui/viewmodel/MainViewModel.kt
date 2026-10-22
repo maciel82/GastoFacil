@@ -17,6 +17,7 @@ import com.example.gastofacil.data.local.CategoryEntity
 import com.example.gastofacil.data.local.GoalEntity
 import com.example.gastofacil.data.local.NotificationEntity
 import com.example.gastofacil.data.local.RecurringBillEntity
+import com.example.gastofacil.data.local.SuggestedTransactionEntity
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.data.local.util.BackupManager
 import com.example.gastofacil.data.repository.TransactionRepository
@@ -43,6 +44,73 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val unreadNotificationsCount: Flow<Int> = AppDatabase.getDatabase(application)
         .notificationDao()
         .getUnreadCount()
+
+    val allSuggestions: Flow<List<SuggestedTransactionEntity>> = AppDatabase.getDatabase(application)
+        .suggestedTransactionDao()
+        .getAllSuggestions()
+
+    fun acceptSuggestion(suggestion: SuggestedTransactionEntity) {
+        viewModelScope.launch {
+            val transaction = TransactionEntity(
+                title = suggestion.title,
+                amount = suggestion.amount,
+                type = suggestion.type,
+                paymentMethod = suggestion.paymentMethod,
+                bank = suggestion.bank,
+                category = suggestion.category,
+                date = suggestion.date,
+                storeLocation = null
+            )
+            repository.insertTransaction(transaction)
+            AppDatabase.getDatabase(getApplication())
+                .suggestedTransactionDao()
+                .deleteSuggestion(suggestion)
+            checkAllBudgetsAcrossMonths()
+        }
+    }
+
+    fun dismissSuggestion(suggestion: SuggestedTransactionEntity) {
+        viewModelScope.launch {
+            AppDatabase.getDatabase(getApplication())
+                .suggestedTransactionDao()
+                .deleteSuggestion(suggestion)
+        }
+    }
+
+    fun isNotificationServiceEnabled(context: Context): Boolean {
+        return try {
+            val enabledPackages = NotificationManagerCompat.getEnabledListenerPackages(context)
+            enabledPackages.contains(context.packageName)
+        } catch (e: Exception) {
+            val flat = android.provider.Settings.Secure.getString(
+                context.contentResolver,
+                "enabled_notification_listeners"
+            )
+            flat?.contains(context.packageName) == true
+        }
+    }
+
+    fun hasSmsPermission(context: Context): Boolean {
+        return androidx.core.content.ContextCompat.checkSelfPermission(
+            context,
+            android.Manifest.permission.RECEIVE_SMS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+    }
+
+    fun rebindNotificationListener(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && isNotificationServiceEnabled(context)) {
+            try {
+                val componentName = android.content.ComponentName(
+                    context,
+                    com.example.gastofacil.data.service.BankNotificationService::class.java
+                )
+                android.service.notification.NotificationListenerService.requestRebind(componentName)
+                android.util.Log.d("MainViewModel", "Solicitado rebind do NotificationListenerService.")
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
 
     private val prefs = application.getSharedPreferences("gastofacil_prefs", Context.MODE_PRIVATE)
 

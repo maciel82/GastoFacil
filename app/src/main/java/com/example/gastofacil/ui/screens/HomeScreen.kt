@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sms
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -29,10 +32,13 @@ import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.verticalScroll
 import com.example.gastofacil.data.local.TransactionEntity
 import com.example.gastofacil.ui.components.AddTransactionDialog
+import com.example.gastofacil.ui.components.SuggestedTransactionsSection
 import com.example.gastofacil.ui.components.NotificationsDialog
 import com.example.gastofacil.ui.components.TransactionDetailsDialog
 import com.example.gastofacil.ui.theme.*
@@ -107,7 +113,37 @@ fun HomeScreen(
     var transactionToViewDetails by remember { mutableStateOf<TransactionEntity?>(null) }
 
     val unreadNotificationsCount by viewModel.unreadNotificationsCount.collectAsState(initial = 0)
+    val suggestions by viewModel.allSuggestions.collectAsState(initial = emptyList())
     var showNotificationsDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    var showNotificationPermissionDialog by remember { mutableStateOf(false) }
+    var showSmsPermissionDialog by remember { mutableStateOf(false) }
+
+    val smsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { _ -> }
+
+    val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                viewModel.rebindNotificationListener(context)
+                val isNotifEnabled = viewModel.isNotificationServiceEnabled(context)
+                val hasSms = viewModel.hasSmsPermission(context)
+
+                if (!isNotifEnabled) {
+                    showNotificationPermissionDialog = true
+                } else if (!hasSms) {
+                    showSmsPermissionDialog = true
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     Scaffold(
         containerColor = SageBackground,
@@ -240,7 +276,8 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp),
+                .padding(16.dp)
+                .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Row(
@@ -388,6 +425,12 @@ fun HomeScreen(
                 }
             }
 
+            SuggestedTransactionsSection(
+                suggestions = suggestions,
+                onAccept = { viewModel.acceptSuggestion(it) },
+                onDismiss = { viewModel.dismissSuggestion(it) }
+            )
+
             Text(text = "PROJEÇÃO DE PARCELAS", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
 
             Row(
@@ -416,11 +459,11 @@ fun HomeScreen(
             if (lastExpenses.isNotEmpty()) {
                 Text(text = "ÚLTIMOS GASTOS", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
 
-                LazyColumn(
+                Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(lastExpenses, key = { it.id }) { transaction ->
+                    lastExpenses.forEach { transaction ->
                         val dismissState = rememberSwipeToDismissBoxState(
                             confirmValueChange = { dismissValue ->
                                 when (dismissValue) {
@@ -642,6 +685,109 @@ fun HomeScreen(
                 NotificationsDialog(
                     viewModel = viewModel,
                     onDismiss = { showNotificationsDialog = false }
+                )
+            }
+
+            if (showNotificationPermissionDialog) {
+                AlertDialog(
+                    onDismissRequest = {
+                        showNotificationPermissionDialog = false
+                        if (!viewModel.hasSmsPermission(context)) {
+                            showSmsPermissionDialog = true
+                        }
+                    },
+                    containerColor = SageBackground,
+                    title = { Text("Ativar Leitura Automática?", fontWeight = FontWeight.Bold, color = DarkForestGreen) },
+                    text = {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text(
+                                "Para que o GastoFácil sugira entradas e saídas automaticamente pelas notificações do seu banco (Nubank, PicPay, etc.), é necessário permitir o acesso às notificações nas configurações.",
+                                fontSize = 14.sp,
+                                color = Color.DarkGray
+                            )
+                            Text(
+                                "💡 Se seu celular for Xiaomi, Samsung ou Motorola, ative também o \"Início Automático\" nas configurações do aplicativo para capturar avisos mesmo com o app fechado.",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showNotificationPermissionDialog = false
+                                if (!viewModel.hasSmsPermission(context)) {
+                                    showSmsPermissionDialog = true
+                                }
+                                try {
+                                    val intent = android.content.Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS")
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    val intent = android.content.Intent(android.provider.Settings.ACTION_SETTINGS)
+                                    context.startActivity(intent)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen)
+                        ) {
+                            Text("Ir para Configurações")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = {
+                            showNotificationPermissionDialog = false
+                            if (!viewModel.hasSmsPermission(context)) {
+                                showSmsPermissionDialog = true
+                            }
+                        }) {
+                            Text("Depois", color = Color.Gray)
+                        }
+                    }
+                )
+            }
+
+            if (showSmsPermissionDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSmsPermissionDialog = false },
+                    containerColor = SageBackground,
+                    title = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Sms,
+                                contentDescription = null,
+                                tint = DarkForestGreen,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
+                            Text("Ativar Leitura de SMS?", fontWeight = FontWeight.Bold, color = DarkForestGreen)
+                        }
+                    },
+                    text = {
+                        Text(
+                            "Bancos como Bradesco, Itaú e Caixa enviam alertas de Pix e compras por SMS. Permita o acesso ao SMS para capturar também essas movimentações.",
+                            fontSize = 14.sp,
+                            color = Color.DarkGray
+                        )
+                    },
+                    confirmButton = {
+                        Button(
+                            onClick = {
+                                showSmsPermissionDialog = false
+                                smsPermissionLauncher.launch(
+                                    arrayOf(
+                                        android.Manifest.permission.RECEIVE_SMS,
+                                        android.Manifest.permission.READ_SMS
+                                    )
+                                )
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = DarkForestGreen)
+                        ) {
+                            Text("Permitir SMS")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSmsPermissionDialog = false }) {
+                            Text("Agora Não", color = Color.Gray)
+                        }
+                    }
                 )
             }
         }
