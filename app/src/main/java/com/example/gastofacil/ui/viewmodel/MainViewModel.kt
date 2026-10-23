@@ -360,6 +360,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return dao.getTransactionsByDateRange(startDate, endDate)
     }
 
+    val allRawTransactions: Flow<List<TransactionEntity>> = AppDatabase.getDatabase(getApplication())
+        .transactionDao()
+        .getAllTransactions()
+
     val allTransactions: Flow<List<TransactionEntity>> = AppDatabase.getDatabase(getApplication())
         .transactionDao()
         .getAllTransactions()
