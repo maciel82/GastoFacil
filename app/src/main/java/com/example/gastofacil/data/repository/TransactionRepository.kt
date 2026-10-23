@@ -12,8 +12,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         if (transaction.isInstallment && transaction.totalInstallments > 1) {
             insertInstallmentTransactions(transaction)
         } else {
-            val adjustedTransaction = applyCreditCardClosingRule(transaction)
-            transactionDao.insertTransaction(adjustedTransaction)
+            transactionDao.insertTransaction(transaction)
         }
     }
 
@@ -73,31 +72,11 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         }
     }
 
-    // Regra do Cartão de Crédito: Fechamento no dia 4
-    // Se a compra for feita no dia 4 ou depois, vai para o mês seguinte
-    private fun applyCreditCardClosingRule(transaction: TransactionEntity): TransactionEntity {
-        if (transaction.paymentMethod == "CREDIT") {
-            val calendar = Calendar.getInstance().apply { timeInMillis = transaction.date }
-            val originalDay = calendar.get(Calendar.DAY_OF_MONTH)
-
-            if (originalDay >= 4) {
-                calendar.add(Calendar.MONTH, 1)
-                val maxDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
-                calendar.set(Calendar.DAY_OF_MONTH, originalDay.coerceAtMost(maxDay))
-                return transaction.copy(date = calendar.timeInMillis)
-            }
-        }
-        return transaction
-    }
-
     // Lógica para gerar as parcelas automaticamente mês a mês dividindo o valor total pelo número de parcelas
     private suspend fun insertInstallmentTransactions(baseTransaction: TransactionEntity) {
         val groupId = UUID.randomUUID().toString()
         val originalCal = Calendar.getInstance().apply { timeInMillis = baseTransaction.date }
         val originalDay = originalCal.get(Calendar.DAY_OF_MONTH)
-
-        // Aplica a regra do dia 4 na primeira parcela se for cartão de crédito
-        val startMonthOffset = if (baseTransaction.paymentMethod == "CREDIT" && originalDay >= 4) 1 else 0
 
         val transactions = mutableListOf<TransactionEntity>()
 
@@ -109,7 +88,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
         for (i in 1..totalInst) {
             val instCal = (originalCal.clone() as Calendar).apply {
-                add(Calendar.MONTH, startMonthOffset + (i - 1))
+                add(Calendar.MONTH, i - 1)
                 val maxDay = getActualMaximum(Calendar.DAY_OF_MONTH)
                 set(Calendar.DAY_OF_MONTH, originalDay.coerceAtMost(maxDay))
             }
