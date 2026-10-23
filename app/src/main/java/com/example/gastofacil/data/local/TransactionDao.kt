@@ -24,7 +24,7 @@ interface TransactionDao {
     @Query("SELECT SUM(amount) FROM transactions WHERE type = 'EXPENSE' AND paymentMethod = :method AND date BETWEEN :startDate AND :endDate")
     fun getTotalByPaymentMethod(method: String, startDate: Long, endDate: Long): Flow<Double?>
 
-    @Query("SELECT * FROM transactions ORDER BY date DESC")
+    @Query("SELECT * FROM transactions ORDER BY date ASC")
     fun getAllTransactions(): Flow<List<TransactionEntity>>
 
     @Query("SELECT * FROM transactions ORDER BY date DESC")

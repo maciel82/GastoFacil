@@ -398,9 +398,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateTransaction(transaction: TransactionEntity) {
+    fun updateTransaction(transaction: TransactionEntity, newTotalAmount: Double? = null) {
         viewModelScope.launch {
-            repository.updateTransaction(transaction)
+            repository.updateTransaction(transaction, newTotalAmount)
             checkAllBudgetsAcrossMonths()
         }
     }

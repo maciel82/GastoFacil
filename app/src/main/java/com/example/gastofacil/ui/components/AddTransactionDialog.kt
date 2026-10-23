@@ -23,7 +23,16 @@ fun AddTransactionDialog(
     val isEditing = transactionToEdit != null
 
     var title by remember { mutableStateOf(transactionToEdit?.title ?: "") }
-    var amountText by remember { mutableStateOf(transactionToEdit?.amount?.toString() ?: "") }
+    var amountText by remember {
+        mutableStateOf(
+            if (transactionToEdit != null && transactionToEdit.isInstallment && transactionToEdit.totalInstallments > 1) {
+                val totalAmt = kotlin.math.round(transactionToEdit.amount * transactionToEdit.totalInstallments * 100.0) / 100.0
+                if (totalAmt % 1.0 == 0.0) totalAmt.toLong().toString() else totalAmt.toString()
+            } else {
+                transactionToEdit?.amount?.toString() ?: ""
+            }
+        )
+    }
     var storeLocation by remember { mutableStateOf(transactionToEdit?.storeLocation ?: "") }
     var type by remember { mutableStateOf(transactionToEdit?.type ?: "EXPENSE") }
     var paymentMethod by remember { mutableStateOf(transactionToEdit?.paymentMethod ?: "CREDIT") }
@@ -215,7 +224,7 @@ fun AddTransactionDialog(
                                 bank = selectedBank,
                                 category = selectedCategory
                             )
-                            viewModel.updateTransaction(updatedTransaction)
+                            viewModel.updateTransaction(updatedTransaction, newTotalAmount = amountValue)
                         } else {
                             // Cria um novo registro
                             val newTransaction = TransactionEntity(
