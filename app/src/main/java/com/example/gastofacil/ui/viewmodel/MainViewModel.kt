@@ -381,13 +381,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 if (groupKey != null) {
-                    val currentRepresentative = groupedMap[groupKey]
-                    if (
-                        currentRepresentative == null ||
-                        tx.date > currentRepresentative.date ||
-                        (tx.date == currentRepresentative.date &&
-                                tx.currentInstallment > currentRepresentative.currentInstallment)
-                    ) {
+                    if (!groupedMap.containsKey(groupKey)) {
                         groupedMap[groupKey] = tx
                     }
                 } else {
