@@ -89,7 +89,9 @@ fun HomeScreen(
     val allTransactions by allTransactionsFlow.collectAsState(initial = emptyList())
 
     val lastExpenses = remember(allTransactions) {
-        allTransactions.filter { it.type == "EXPENSE" }.takeLast(3)
+        allTransactions
+            .filter { it.type == "EXPENSE" }
+            .take(3)
     }
 
     var transactionToEdit by remember { mutableStateOf<TransactionEntity?>(null) }
