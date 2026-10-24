@@ -417,7 +417,37 @@ fun MonthDetailsScreen(
                     Card(
                         shape = RoundedCornerShape(16.dp),
                         colors = CardDefaults.cardColors(containerColor = DarkForestGreen),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .pointerInput(activeMonthView) {
+                                var dragAmount = 0f
+                                detectHorizontalDragGestures(
+                                    onDragEnd = {
+                                        val (year, month) = activeMonthView!!
+                                        if (dragAmount > 50f) {
+                                            val newCalendar = Calendar.getInstance().apply {
+                                                set(year, month, 1)
+                                                add(Calendar.MONTH, -1)
+                                            }
+                                            activeMonthView = Pair(
+                                                newCalendar.get(Calendar.YEAR),
+                                                newCalendar.get(Calendar.MONTH)
+                                            )
+                                        } else if (dragAmount < -50f) {
+                                            val newCalendar = Calendar.getInstance().apply {
+                                                set(year, month, 1)
+                                                add(Calendar.MONTH, 1)
+                                            }
+                                            activeMonthView = Pair(
+                                                newCalendar.get(Calendar.YEAR),
+                                                newCalendar.get(Calendar.MONTH)
+                                            )
+                                        }
+                                        dragAmount = 0f
+                                    },
+                                    onHorizontalDrag = { _, delta -> dragAmount += delta }
+                                )
+                            }
                     ) {
                         Column(
                             modifier = Modifier
@@ -425,6 +455,51 @@ fun MonthDetailsScreen(
                                 .padding(16.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = {
+                                    val (year, month) = activeMonthView!!
+                                    val newCalendar = Calendar.getInstance().apply {
+                                        set(year, month, 1)
+                                        add(Calendar.MONTH, -1)
+                                    }
+                                    activeMonthView = Pair(
+                                        newCalendar.get(Calendar.YEAR),
+                                        newCalendar.get(Calendar.MONTH)
+                                    )
+                                }) {
+                                    Icon(Icons.Default.ChevronLeft, contentDescription = "Mês Anterior", tint = Color.White)
+                                }
+
+                                Text(
+                                    text = monthFormat.format(
+                                        Calendar.getInstance().apply {
+                                            set(activeMonthView!!.first, activeMonthView!!.second, 1)
+                                        }.time
+                                    ).uppercase(Locale("pt", "BR")),
+                                    fontSize = 16.sp,
+                                    color = Color.White,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                IconButton(onClick = {
+                                    val (year, month) = activeMonthView!!
+                                    val newCalendar = Calendar.getInstance().apply {
+                                        set(year, month, 1)
+                                        add(Calendar.MONTH, 1)
+                                    }
+                                    activeMonthView = Pair(
+                                        newCalendar.get(Calendar.YEAR),
+                                        newCalendar.get(Calendar.MONTH)
+                                    )
+                                }) {
+                                    Icon(Icons.Default.ChevronRight, contentDescription = "Próximo Mês", tint = Color.White)
+                                }
+                            }
+
                             Text(
                                 text = currencyFormat.format(monthExpenses),
                                 fontSize = 28.sp,
