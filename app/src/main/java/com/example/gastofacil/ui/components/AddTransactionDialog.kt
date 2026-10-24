@@ -21,11 +21,14 @@ fun AddTransactionDialog(
     onDismiss: () -> Unit,
 ) {
     val isEditing = transactionToEdit != null
+    val isInstallmentPurchase = transactionToEdit?.let {
+        it.totalInstallments > 1 && (it.isInstallment || !it.installmentGroupId.isNullOrBlank())
+    } == true
 
     var title by remember { mutableStateOf(transactionToEdit?.title ?: "") }
     var amountText by remember {
         mutableStateOf(
-            if (transactionToEdit != null && transactionToEdit.isInstallment && transactionToEdit.totalInstallments > 1) {
+            if (transactionToEdit != null && isInstallmentPurchase) {
                 val totalAmt = kotlin.math.round(transactionToEdit.amount * transactionToEdit.totalInstallments * 100.0) / 100.0
                 if (totalAmt % 1.0 == 0.0) totalAmt.toLong().toString() else totalAmt.toString()
             } else {
@@ -42,7 +45,7 @@ fun AddTransactionDialog(
     val categoriesList by viewModel.categories.collectAsState(initial = emptyList())
     var selectedCategory by remember { mutableStateOf(transactionToEdit?.category ?: "Mercado") }
 
-    var isInstallment by remember { mutableStateOf(transactionToEdit?.isInstallment ?: false) }
+    var isInstallment by remember { mutableStateOf(isInstallmentPurchase) }
     var totalInstallmentsText by remember { mutableStateOf(transactionToEdit?.totalInstallments?.toString() ?: "2") }
 
     var isCategoryDropdownExpanded by remember { mutableStateOf(false) }
