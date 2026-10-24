@@ -61,7 +61,13 @@ fun TransactionDetailsDialog(
                         )
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = (if (transaction.type == "INCOME") "+ " else "- ") + currencyFormat.format(transaction.amount),
+                            text = (if (transaction.type == "INCOME") "+ " else "- ") + currencyFormat.format(
+                                if (transaction.type == "EXPENSE" && transaction.isInstallment) {
+                                    transaction.amount * transaction.totalInstallments
+                                } else {
+                                    transaction.amount
+                                }
+                            ),
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (transaction.type == "INCOME") IncomeGreenText else ExpenseRedText
