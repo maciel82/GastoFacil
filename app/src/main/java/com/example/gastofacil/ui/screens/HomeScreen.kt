@@ -89,9 +89,7 @@ fun HomeScreen(
     val allTransactions by allTransactionsFlow.collectAsState(initial = emptyList())
 
     val lastExpenses = remember(allTransactions) {
-        allTransactions
-            .filter { it.type == "EXPENSE" }
-            .take(3)
+        allTransactions.filter { it.type == "EXPENSE" }.takeLast(3)
     }
 
     var transactionToEdit by remember { mutableStateOf<TransactionEntity?>(null) }
@@ -580,7 +578,9 @@ fun HomeScreen(
                                         Column(
                                             horizontalAlignment = Alignment.End
                                         ) {
-                                            val displayFullAmount = if (transaction.isInstallment && transaction.totalInstallments > 1) {
+                                            val isInstallmentPurchase = transaction.totalInstallments > 1 &&
+                                                (transaction.isInstallment || !transaction.installmentGroupId.isNullOrBlank())
+                                            val displayFullAmount = if (isInstallmentPurchase) {
                                                 transaction.amount * transaction.totalInstallments
                                             } else {
                                                 transaction.amount
@@ -591,7 +591,7 @@ fun HomeScreen(
                                                 fontWeight = FontWeight.Bold,
                                                 color = ExpenseRedText
                                             )
-                                            if (transaction.isInstallment && transaction.totalInstallments > 1) {
+                                            if (isInstallmentPurchase) {
                                                 Text(
                                                     text = "em ${transaction.totalInstallments}x",
                                                     fontSize = 11.sp,
