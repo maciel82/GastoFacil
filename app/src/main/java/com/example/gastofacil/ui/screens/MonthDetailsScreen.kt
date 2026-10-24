@@ -570,7 +570,7 @@ fun MonthDetailsScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(filteredTransactions, key = { it.id }) { transaction ->
+                        items(filteredTransactions.sortedByDescending { it.date }, key = { it.id }) { transaction ->
                             TransactionListItem(
                                 transaction = transaction,
                                 isGlobalView = false,
